@@ -37,7 +37,7 @@ dotenv.config();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
-  'https://smartlabtechadmin.onrender.com'
+  'https://smartlabtechadmin.onrender.com',
 ];
 
 // Create upload directories on server start
@@ -163,7 +163,7 @@ app.get('/api/health', (req, res) => {
 // Error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5101;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📁 Uploads directory: ${path.join(__dirname, 'uploads')}`);

@@ -70,17 +70,6 @@ const connectDB = async () => {
       console.log('   • Wait 2 minutes for changes');
     }
     
-    console.log('\n4. Current Connection String (check if correct):');
-    // console.log(`   ${mongoURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
-    
-    console.log('\n5. Try Local MongoDB Instead:');
-    console.log('   Install MongoDB locally and use:');
-    console.log('   mongodb://localhost:27017/smartlabtech');
-    
-    console.log('─────────────────────────────────────────────────\n');
-    
-    // Don't exit - keep server running for local development
-    console.log('⚠️ Continuing without database - using fallback mode');
     return null;
   }
 };
