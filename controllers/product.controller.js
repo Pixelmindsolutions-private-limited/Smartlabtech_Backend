@@ -147,8 +147,13 @@ export const getAllProducts = async (req, res) => {
 
 export const getAllProductsAdmin = async (req, res) => {
   try {
-    const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc', includeInactive = 'true' } = req.query;
-    
+    const { page, limit, sortBy = 'createdAt', sortOrder = 'desc', includeInactive = 'true' } = req.query;
+
+    // Only paginate when page or limit is explicitly passed; otherwise return everything
+    const shouldPaginate = page !== undefined || limit !== undefined;
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 20;
+
     // Build query - don't filter by isActive for admin
     const query = {};
     
@@ -179,25 +184,27 @@ export const getAllProductsAdmin = async (req, res) => {
     }
     
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
+    let productsQuery = Product.find(query).populate('brand category').sort(sort);
+    if (shouldPaginate) {
+      const skip = (pageNum - 1) * limitNum;
+      productsQuery = productsQuery.skip(skip).limit(limitNum);
+    }
+
     const [products, total, activeCount, inactiveCount] = await Promise.all([
-      Product.find(query).populate('brand category').sort(sort).limit(parseInt(limit)).skip(skip),
+      productsQuery,
       Product.countDocuments(query),
       Product.countDocuments({ isActive: true }),
       Product.countDocuments({ isActive: false })
     ]);
-    
+
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.json({
       success: true,
       data: products.map(p => addFullUrls(p, baseUrl)),
-      pagination: { 
-        total, 
-        page: parseInt(page), 
-        limit: parseInt(limit), 
-        pages: Math.ceil(total / parseInt(limit))
-      },
+      pagination: shouldPaginate
+        ? { total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) }
+        : { total, page: 1, limit: total, pages: 1 },
       summary: {
         totalProducts: total,
         activeProducts: activeCount,

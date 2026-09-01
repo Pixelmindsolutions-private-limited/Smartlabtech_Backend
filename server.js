@@ -37,7 +37,14 @@ dotenv.config();
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
+  'http://187.127.219.43:3000',
+  'http://187.127.219.43:3000/',
   'https://smartlabtechadmin.onrender.com',
+  'https://smartlabtech.com',
+  'https://www.smartlabtech.com',
+  'https://www.smartlabtech.com/',
+  'https://smartlabtech.com/',
+
 ];
 
 // Create upload directories on server start

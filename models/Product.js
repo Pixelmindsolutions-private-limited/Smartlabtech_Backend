@@ -106,7 +106,6 @@ const productSchema = new mongoose.Schema({
   // Pricing
   price: {
     type: Number,
-    required: [true, 'Price is required'],
     default: 0
   },
   discountedPrice: {
