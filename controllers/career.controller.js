@@ -205,3 +205,88 @@ export const getApplicationById = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+export const getCta = async (req, res) => {
+  try {
+    const page = await CareerPage.findOne({ isActive: true });
+    if (!page) {
+      return res.status(404).json({ success: false, message: 'Career page not found' });
+    }
+    res.json({ success: true, data: page.cta || null });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// CREATE CTA (Fails if it already exists)
+export const createCta = async (req, res) => {
+  try {
+    const { title, tag, description } = req.body;
+
+    if (!title || !tag || !description) {
+      return res.status(400).json({ success: false, message: 'title, tag, and description are required' });
+    }
+
+    // Get the career page document
+    let page = await CareerPage.findOne();
+    
+    // If no career page exists at all, create one with just the CTA
+    if (!page) {
+      page = new CareerPage();
+    }
+
+    // Check if CTA already exists
+    if (page.cta && page.cta.title) {
+      return res.status(400).json({ success: false, message: 'CTA section already exists. Please use the update endpoint.' });
+    }
+
+    // Create CTA
+    page.cta = { title, tag, description };
+    await page.save();
+
+    res.status(201).json({ success: true, message: 'CTA section created', data: page.cta });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// UPDATE CTA
+export const updateCta = async (req, res) => {
+  try {
+    const { title, tag, description } = req.body;
+
+    const page = await CareerPage.findOne();
+    if (!page) {
+      return res.status(404).json({ success: false, message: 'Career page not found' });
+    }
+
+    // Update only provided fields
+    if (title) page.cta.title = title;
+    if (tag) page.cta.tag = tag;
+    if (description) page.cta.description = description;
+
+    await page.save();
+    res.json({ success: true, message: 'CTA section updated', data: page.cta });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// DELETE CTA
+export const deleteCta = async (req, res) => {
+  try {
+    const page = await CareerPage.findOne();
+    if (!page) {
+      return res.status(404).json({ success: false, message: 'Career page not found' });
+    }
+
+    // Completely remove the cta section
+    page.cta = undefined; 
+    await page.save();
+
+    res.json({ success: true, message: 'CTA section deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
