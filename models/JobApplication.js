@@ -11,6 +11,9 @@ const jobApplicationSchema = new mongoose.Schema({
   mobileNumber: { type: String, required: true },
   currentCity: { type: String, required: true },
   coverNote: { type: String, required: true },
+  resumeUrl: { 
+    type: String, 
+  }, 
   status: { 
     type: String, 
     enum: ['Pending', 'Reviewed', 'Shortlisted', 'Rejected'], 

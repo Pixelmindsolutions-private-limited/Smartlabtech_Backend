@@ -37,6 +37,9 @@ const storage = multer.diskStorage({
       case 'heroBackground':
         uploadPath = path.join(UPLOAD_ROOT, 'homepage', 'hero');
         break;
+      case 'resume':
+        uploadPath = path.join(UPLOAD_ROOT, 'careers', 'resumes');
+        break;
       
       case 'heroImage': {
       const isHomepage =
@@ -80,11 +83,9 @@ const fileFilter = (req, file, cb) => {
   const ext  = path.extname(file.originalname).toLowerCase().replace('.', '');
   const mime = file.mimetype || '';
 
-  if (file.fieldname === 'fileUpload') {
+  if (file.fieldname === 'fileUpload' || file.fieldname === 'resume') {
     if (docExts.test(ext) && docMimes.test(mime)) return cb(null, true);
-    return cb(
-      new Error('fileUpload must be a document (pdf, doc, docx, xls, xlsx, ppt, pptx, zip, rar, txt, csv)')
-    );
+    return cb(new Error('File must be a document (pdf, doc, docx, xls, xlsx, ppt, pptx, zip, rar, txt, csv)'));
   }
 
   // Everything else is expected to be an image
@@ -139,6 +140,8 @@ const uploadProductImages = (req, res, next) => {
 const uploadHeroImage     = upload.single('heroImage');
 const uploadHomeHeroImage = upload.single('heroImage');
 const uploadCareerHeroImage = upload.single('heroImage'); 
+const uploadResume = upload.single('resume');
+
 
 export {
   upload,
@@ -147,5 +150,6 @@ export {
   uploadHeroImage,
   uploadHomeHeroImage,
   uploadCareerHeroImage,
+  uploadResume,
   UPLOAD_ROOT,
 };

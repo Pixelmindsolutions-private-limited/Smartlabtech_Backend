@@ -157,14 +157,29 @@ export const submitApplication = async (req, res) => {
   try {
     const { roleId, fullName, email, mobileNumber, currentCity, coverNote } = req.body;
 
-    // Check if role exists
-    const roleExists = await OpenRole.findById(roleId);
+    // 1. Verify the role exists
+    const roleExists = await OpenRole.findOne({ _id: roleId, isActive: true });
     if (!roleExists) {
-      return res.status(404).json({ success: false, message: 'The job role you are applying for no longer exists.' });
+      return res.status(404).json({ success: false, message: 'This job role is no longer available.' });
     }
 
+    // 2. Verify Resume was uploaded
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Resume (PDF or DOC) is required.' });
+    }
+
+    // 3. Create the file URL path
+    const resumeUrl = `/uploads/careers/resumes/${req.file.filename}`;
+
+    // 4. Create the application
     const application = await JobApplication.create({
-      roleId, fullName, email, mobileNumber, currentCity, coverNote
+      roleId, 
+      fullName, 
+      email, 
+      mobileNumber, 
+      currentCity, 
+      coverNote,
+      resumeUrl // 👈 Save the file path
     });
 
     res.status(201).json({ 
