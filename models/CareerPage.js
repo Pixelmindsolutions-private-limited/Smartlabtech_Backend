@@ -4,6 +4,8 @@ const careerPageSchema = new mongoose.Schema({
   hero: {
     title: { type: String, required: true },
     description: { type: String, required: true },
+    image: { type: String, required: true },
+    tag: { type: String, default: 'JOB ARCHIVES' }
   },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });
