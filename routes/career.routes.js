@@ -2,7 +2,8 @@ import express from 'express';
 import {
   getCareerPage, createCareerPage, updateCareerPage,
   createOpenRole, getAllOpenRoles, getOpenRoleById, updateOpenRole, deleteOpenRole,
-  submitApplication, getAllApplications, getApplicationById
+  submitApplication, getAllApplications, getApplicationById,
+  getCta, createCta, updateCta, deleteCta
 } from '../controllers/career.controller.js';
 import { uploadCareerHeroImage } from '../config/multer.config.js';
 
@@ -24,5 +25,10 @@ router.delete('/roles/:id', deleteOpenRole);   // Admin: delete role
 router.post('/apply', submitApplication);      // Public: submit form
 router.get('/applications', getAllApplications); // Admin: view all submissions
 router.get('/applications/:id', getApplicationById);
+
+router.get('/cta', getCta);           
+router.post('/cta', createCta);       
+router.put('/cta', updateCta);      
+router.delete('/cta', deleteCta);
 
 export default router;
