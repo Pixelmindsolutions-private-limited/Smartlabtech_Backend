@@ -1,4 +1,4 @@
-import Department from '../../models/department.js';
+import Department from '../models/department.js';
 
 // ============================================================
 // 1. CREATE DEPARTMENT

@@ -1,11 +1,10 @@
-import staffModel from "../../models/staff.js";
-import roleModel from "../../models/roles.js";
-import departmentModel from "../../models/department.js";
+import staffModel from "../models/staff.js";
+import roleModel from "../models/roles.js";
+import departmentModel from "../models/department.js";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import jwt from 'jsonwebtoken';
-import StaffLogs from "../../models/staffLogs.js"
 import { DateTime } from "luxon";
 import crypto from "crypto";
 
@@ -1025,124 +1024,6 @@ export const getrolesandpermissions = async (req, res) => {
             message: "Something went wrong",
             roleName: null,
             rolesAndPermission: []
-        });
-    }
-};
-
-//get staff logs
-export const getStaffLogs = async (req, res) => {
-    try {
-        const logs = await StaffLogs.aggregate([
-            // ============================================================
-            // LOOKUP STAFF DETAILS
-            // ============================================================
-            {
-                $lookup: {
-                    from: "staffs",
-                    localField: "staffId",
-                    foreignField: "_id",
-                    as: "staffData"
-                }
-            },
-
-            // ============================================================
-            // UNWIND STAFF DATA
-            // ============================================================
-            {
-                $unwind: {
-                    path: "$staffData",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-
-            // ============================================================
-            // LOOKUP ROLE DETAILS
-            // ============================================================
-            {
-                $lookup: {
-                    from: "roles",
-                    localField: "staffData.roleId",
-                    foreignField: "_id",
-                    as: "roleData"
-                }
-            },
-
-            // ============================================================
-            // LOOKUP DEPARTMENT DETAILS
-            // ============================================================
-            {
-                $lookup: {
-                    from: "departments",
-                    localField: "staffData.departmentId",
-                    foreignField: "_id",
-                    as: "departmentData"
-                }
-            },
-
-            // ============================================================
-            // UNWIND ROLE DATA
-            // ============================================================
-            {
-                $unwind: {
-                    path: "$roleData",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-
-            // ============================================================
-            // UNWIND DEPARTMENT DATA
-            // ============================================================
-            {
-                $unwind: {
-                    path: "$departmentData",
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-
-            // ============================================================
-            // ADD DYNAMIC STAFF / ROLE / DEPARTMENT NAMES
-            // ============================================================
-            {
-                $addFields: {
-                    staffName: "$staffData.name",
-                    roleName: "$roleData.roleName",
-                    departmentName: "$departmentData.departmentName"
-                }
-            },
-
-            // ============================================================
-            // REMOVE UNNECESSARY LOOKUP DATA
-            // ============================================================
-            {
-                $project: {
-                    staffData: 0,
-                    roleData: 0,
-                    departmentData: 0
-                }
-            },
-
-            // ============================================================
-            // LATEST LOGS FIRST
-            // ============================================================
-            {
-                $sort: {
-                    createdAt: -1
-                }
-            }
-        ]);
-
-        return res.status(200).json({
-            success: true,
-            message: "Staff logs retrieved successfully",
-            logs
-        });
-
-    } catch (error) {
-        console.log("❌ Get Staff Logs Error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to retrieve staff logs"
         });
     }
 };

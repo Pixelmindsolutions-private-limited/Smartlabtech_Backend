@@ -1,4 +1,4 @@
-import Role from '../../models/roles.js';
+import Role from '../models/roles.js';
 
 // ============================================================
 // 1. CREATE ROLE

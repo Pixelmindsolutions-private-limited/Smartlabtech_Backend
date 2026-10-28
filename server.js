@@ -24,6 +24,9 @@ import footerRoutes from './routes/footer.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import ApplicationPageRoutes from './routes/Applicationpage.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import departmentRoutes from  './routes/departmentRoutes.js';
+import rolesRoutes from './routes/rolesRoutes.js';
+import staffRoutes from './routes/staffRoutes.js';
 import resourcePageRoutes from './routes/resourcepage.routes.js';
 import authRoutes from './routes/auth.routes.js';  // Add auth routes
 import errorHandler from './middleware/error.middleware.js';
@@ -114,6 +117,10 @@ const createUploadDirs = () => {
 
     path.join(__dirname, 'uploads', 'careers'),
     path.join(__dirname, 'uploads', 'careers', 'hero'),
+
+    //staff directories
+    path.join(__dirname, 'uploads', 'staff'),
+
     
     // Resource page directories
     path.join(__dirname, 'uploads', 'resources'),
@@ -122,6 +129,8 @@ const createUploadDirs = () => {
     path.join(__dirname, 'uploads', 'resources', 'pdfs'),
     path.join(__dirname, 'uploads', 'resources', 'casestudies')
   ];
+
+
   
   dirs.forEach(dir => {
     if (!fs.existsSync(dir)) {
@@ -167,6 +176,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/applicationpage', ApplicationPageRoutes);
 app.use('/api/resources', resourcePageRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/roles', rolesRoutes);
+app.use('/api/staff', staffRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

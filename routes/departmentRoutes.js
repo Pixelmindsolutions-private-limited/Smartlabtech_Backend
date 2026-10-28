@@ -1,7 +1,6 @@
 import express from 'express';
-import * as departmentController from '../../controllers/admin/departemntController.js';
-import { verifyAdminToken } from "../../middleware/verifyAdminToken.js";
-
+import * as departmentController from '../controllers/departemntController.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
 const router = express.Router();
 
 
@@ -10,7 +9,8 @@ const router = express.Router();
 // ============================================================
 router.post(
     '/adddepartment',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     departmentController.createDepartment
 );
 
@@ -20,7 +20,8 @@ router.post(
 // ============================================================
 router.post(
     '/getall-departments',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     departmentController.getAllDepartments
 );
 
@@ -30,7 +31,8 @@ router.post(
 // ============================================================
 router.post(
     '/getall-activedepartments',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     departmentController.getAllActiveDepartments
 );
 
@@ -40,7 +42,8 @@ router.post(
 // ============================================================
 router.post(
     '/getdepartmentbyid',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     departmentController.getSingleDepartment
 );
 
@@ -50,7 +53,8 @@ router.post(
 // ============================================================
 router.put(
     '/updatedepartment/:id',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     departmentController.updateDepartment
 );
 
@@ -60,7 +64,8 @@ router.put(
 // ============================================================
 router.delete(
     '/deletedepartment/:id',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     departmentController.deleteDepartment
 );
 

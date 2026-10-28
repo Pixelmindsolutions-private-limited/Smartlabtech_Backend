@@ -37,7 +37,8 @@ router.get('/all', getAllContacts);
 router.get('/stats', getContactStats);
 router.route('/:id/status')
   .get(protect, authorize('admin'), getContactById)
-  .put(protect, authorize('admin'), updateContactStatus)
-  .delete(protect, authorize('admin'), deleteContact);
+  .put(protect, authorize('admin'), updateContactStatus);
+  
+router.delete('/:id', protect, authorize('admin'), deleteContact);
 
 export default router;

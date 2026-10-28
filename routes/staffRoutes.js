@@ -1,7 +1,7 @@
 import express from 'express';
-import * as staffController from '../../controllers/admin/staffController.js';
-import { verifyAdminToken } from "../../middleware/verifyAdminToken.js";
-import { uploadStaffImage } from '../../middleware/uploadImage.js';
+import * as staffController from '../controllers/staffController.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
+import { uploadStaffImage } from '../config/multer.config.js';
 
 const router = express.Router();
 
@@ -12,7 +12,8 @@ const router = express.Router();
 // ============================================================
 router.post(
     '/addstaff',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     uploadStaffImage,
     staffController.addStaff
 );
@@ -24,7 +25,8 @@ router.post(
 // ============================================================
 router.post(
     '/getall-staff',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     staffController.getAllStaff
 );
 
@@ -35,7 +37,8 @@ router.post(
 // ============================================================
 router.post(
     '/getstaffbyid',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     staffController.getStaffById
 );
 
@@ -46,7 +49,8 @@ router.post(
 // ============================================================
 router.put(
     '/updatestaff/:id',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     uploadStaffImage,
     staffController.editStaff
 );
@@ -58,19 +62,22 @@ router.put(
 // ============================================================
 router.delete(
     '/deletestaff/:id',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     staffController.deleteStaff
 );
 
 router.post(
     '/getall-active-staff',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     staffController.getAllActiveStaff
 );
 
 router.put(
     '/changepassword/:id',
-    verifyAdminToken,
+    protect,
+    authorize('admin'),
     staffController.changeStaffPassword
 );
 
@@ -80,19 +87,13 @@ router.post(
 );
 
 router.post(
-    '/getprofile', verifyAdminToken,
+    '/getprofile', 
     staffController.getStaffProfile
 );
 
 router.post(
-    '/getrolesandpermissions', verifyAdminToken,
+    '/getrolesandpermissions', 
     staffController.getrolesandpermissions
-);
-
-
-router.post(
-    '/get-logs', verifyAdminToken,
-    staffController.getStaffLogs
 );
 
 export default router;

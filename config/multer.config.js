@@ -37,6 +37,9 @@ const storage = multer.diskStorage({
       case 'heroBackground':
         uploadPath = path.join(UPLOAD_ROOT, 'homepage', 'hero');
         break;
+      case 'staffImage':
+        uploadPath = path.join(UPLOAD_ROOT, 'staff');
+        break;
       case 'resume':
         uploadPath = path.join(UPLOAD_ROOT, 'careers', 'resumes');
         break;
@@ -141,6 +144,7 @@ const uploadHeroImage     = upload.single('heroImage');
 const uploadHomeHeroImage = upload.single('heroImage');
 const uploadCareerHeroImage = upload.single('heroImage'); 
 const uploadResume = upload.single('resume');
+const uploadStaffImage = upload.single('staffImage');
 
 
 export {
@@ -151,5 +155,6 @@ export {
   uploadHomeHeroImage,
   uploadCareerHeroImage,
   uploadResume,
+  uploadStaffImage,
   UPLOAD_ROOT,
 };
