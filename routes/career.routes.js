@@ -5,7 +5,7 @@ import {
   submitApplication, getAllApplications, getApplicationById,
   getCta, createCta, updateCta, deleteCta
 } from '../controllers/career.controller.js';
-import { uploadCareerHeroImage } from '../config/multer.config.js';
+import { uploadCareerHeroImage, uploadResume } from '../config/multer.config.js';
 
 const router = express.Router();
 
@@ -22,7 +22,7 @@ router.put('/roles/:id', updateOpenRole);      // Admin: edit role
 router.delete('/roles/:id', deleteOpenRole);   // Admin: delete role
 
 // Applications
-router.post('/apply', submitApplication);      // Public: submit form
+router.post('/apply', uploadResume, submitApplication);      // Public: submit form
 router.get('/applications', getAllApplications); // Admin: view all submissions
 router.get('/applications/:id', getApplicationById);
 

@@ -88,6 +88,7 @@ const contactSchema = new mongoose.Schema({
     required: [true, 'Message is required'],
     trim: true
   },
+  fromPage:{ type: String },
   status: {
     type: String,
     enum: ['pending', 'read', 'replied', 'archived'],

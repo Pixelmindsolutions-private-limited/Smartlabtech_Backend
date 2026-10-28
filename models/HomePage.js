@@ -14,6 +14,7 @@ const aboutSchema = new mongoose.Schema({
   image: { type: String, required: true },
   tag: { type: String, required: true },
   title: { type: String, required: true },
+  experience: { type: String, required: true },
   description: { type: String, required: true },
   points: [aboutPointSchema],
   buttonText: { type: String, default: 'Read More' },

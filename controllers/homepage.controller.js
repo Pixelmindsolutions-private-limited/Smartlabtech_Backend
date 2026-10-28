@@ -199,6 +199,7 @@ export const createAbout = async (req, res) => {
       tag: req.body.tag,
       title: req.body.title,
       description: req.body.description,
+      experience: req.body.experience,
       points: points,
       buttonText: req.body.buttonText || 'Read More',
       isActive: req.body.isActive === 'true'
@@ -237,6 +238,7 @@ export const updateAbout = async (req, res) => {
       tag: req.body.tag || homePage.about?.tag,
       title: req.body.title || homePage.about?.title,
       description: req.body.description || homePage.about?.description,
+      experience: req.body.experience || homePage.about?.experience,
       points: points,
       buttonText: req.body.buttonText || homePage.about?.buttonText || 'Read More',
       isActive: req.body.isActive !== undefined ? req.body.isActive === 'true' : homePage.about?.isActive

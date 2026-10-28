@@ -157,13 +157,15 @@ export const submitApplication = async (req, res) => {
   try {
     const { roleId, fullName, email, mobileNumber, currentCity, coverNote } = req.body;
 
+    if (!roleId) {
+      return res.status(400).json({ success: false, message: 'Role ID is missing in the request.' });
+    }
     // 1. Verify the role exists
     const roleExists = await OpenRole.findOne({ _id: roleId, isActive: true });
     if (!roleExists) {
       return res.status(404).json({ success: false, message: 'This job role is no longer available.' });
     }
 
-    // 2. Verify Resume was uploaded
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Resume (PDF or DOC) is required.' });
     }
