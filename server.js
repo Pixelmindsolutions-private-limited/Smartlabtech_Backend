@@ -14,6 +14,7 @@ import productRoutes from './routes/product.routes.js';
 import contactRoutes from './routes/contact.routes.js';
 import contactInfoRoutes from './routes/contactinfo.routes.js';
 import homePageRoutes from './routes/homepage.routes.js';
+import careerRoutes from './routes/career.routes.js';
 import aboutPageRoutes from './routes/aboutpage.routes.js';
 import servicePageRoutes from './routes/servicepage.routes.js';
 import supportPageRoutes from './routes/supportpage.routes.js';
@@ -61,6 +62,7 @@ const createUploadDirs = () => {
     path.join(__dirname, 'uploads', 'products'),
     path.join(__dirname, 'uploads', 'products', 'main'),
     path.join(__dirname, 'uploads', 'products', 'gallery'),
+    path.join(__dirname, 'uploads', 'products', 'files'),
     
     // Homepage directories
     path.join(__dirname, 'uploads', 'homepage'),
@@ -109,6 +111,9 @@ const createUploadDirs = () => {
     // Footer uploads
     path.join(__dirname, 'uploads', 'footer'),
     path.join(__dirname, 'uploads', 'footer', 'policies'),
+
+    path.join(__dirname, 'uploads', 'careers'),
+    path.join(__dirname, 'uploads', 'careers', 'hero'),
     
     // Resource page directories
     path.join(__dirname, 'uploads', 'resources'),
@@ -154,6 +159,7 @@ app.use('/api/homepage', homePageRoutes);
 app.use('/api/aboutpage', aboutPageRoutes);
 app.use('/api/servicepage', servicePageRoutes);
 app.use('/api/supportpage', supportPageRoutes); 
+app.use('/api/careers', careerRoutes);  
 app.use('/api/quotes', quoteRoutes);
 app.use('/api/blogs', blogPageRoutes);
 app.use('/api/footer', footerRoutes);

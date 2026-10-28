@@ -1,98 +1,14 @@
-// import multer from 'multer';
-// import path from 'path';
-// import fs from 'fs';
-// import { fileURLToPath } from 'url';
-
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-
-// // Set upload root directory (absolute path)
-// const UPLOAD_ROOT = path.join(__dirname, '../uploads');
-
-// // Ensure directory exists
-// const ensureDir = (dir) => {
-//   if (!fs.existsSync(dir)) {
-//     fs.mkdirSync(dir, { recursive: true });
-//     console.log(`📁 Created directory: ${dir}`);
-//   }
-// };
-
-// // Configure storage with absolute paths
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     let uploadPath = UPLOAD_ROOT;
-    
-//     if (file.fieldname === 'logo') {
-//       uploadPath = path.join(UPLOAD_ROOT, 'brands');
-//     } else if (file.fieldname === 'mainImage') {
-//       uploadPath = path.join(UPLOAD_ROOT, 'products', 'main');
-//     } else if (file.fieldname === 'gallery') {
-//       uploadPath = path.join(UPLOAD_ROOT, 'products', 'gallery');
-//     }
-    
-//     ensureDir(uploadPath);
-//     cb(null, uploadPath);
-//   },
-//   filename: (req, file, cb) => {
-//     // Generate unique filename
-//     const timestamp = Date.now();
-//     const random = Math.round(Math.random() * 1E9);
-//     const ext = path.extname(file.originalname);
-//     const filename = `${file.fieldname}-${timestamp}-${random}${ext}`;
-//     cb(null, filename);
-//   }
-// });
-
-// // File filter for images only
-// const fileFilter = (req, file, cb) => {
-//   const allowedTypes = /jpeg|jpg|png|gif|webp/;
-//   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-//   const mimetype = allowedTypes.test(file.mimetype);
-
-//   if (mimetype && extname) {
-//     cb(null, true);
-//   } else {
-//     cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)'));
-//   }
-// };
-
-// // Create multer instance
-// const upload = multer({
-//   storage: storage,
-//   limits: {
-//     fileSize: 10 * 1024 * 1024 // 10MB
-//   },
-//   fileFilter: fileFilter
-// });
-
-// // Specific upload configurations
-// const uploadBrandLogo = upload.single('logo');
-// const uploadProductImages = upload.fields([
-//   { name: 'mainImage', maxCount: 1 },
-//   { name: 'gallery', maxCount: 10 }
-// ]);
-
-// export {
-//   upload,
-//   uploadBrandLogo,
-//   uploadProductImages,
-//   UPLOAD_ROOT
-// };
-
-
-// config/multer.config.js
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname  = path.dirname(__filename);
 
-// Set upload root directory (absolute path)
+// Absolute upload root
 const UPLOAD_ROOT = path.join(__dirname, '../uploads');
 
-// Ensure directory exists
 const ensureDir = (dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -100,85 +16,129 @@ const ensureDir = (dir) => {
   }
 };
 
-// Configure storage with absolute paths
+// ---------- Storage ----------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    let uploadPath = UPLOAD_ROOT;
-    
-    // Brand routes
-    if (file.fieldname === 'logo') {
-      uploadPath = path.join(UPLOAD_ROOT, 'brands');
+    let uploadPath;
+
+    switch (file.fieldname) {
+      case 'logo':
+        uploadPath = path.join(UPLOAD_ROOT, 'brands');
+        break;
+      case 'mainImage':
+        uploadPath = path.join(UPLOAD_ROOT, 'products', 'main');
+        break;
+      case 'gallery':
+        uploadPath = path.join(UPLOAD_ROOT, 'products', 'gallery');
+        break;
+      case 'fileUpload':
+        uploadPath = path.join(UPLOAD_ROOT, 'products', 'files');
+        break;
+      case 'heroBackground':
+        uploadPath = path.join(UPLOAD_ROOT, 'homepage', 'hero');
+        break;
+      
+      case 'heroImage': {
+      const isHomepage =
+        req.baseUrl?.includes('/homepage') ||
+        req.originalUrl?.includes('/homepage');
+      
+      const isCareer =
+        req.baseUrl?.includes('/careers') ||
+        req.originalUrl?.includes('/careers'); // 👈 Added Careers check
+
+      if (isHomepage) {
+        uploadPath = path.join(UPLOAD_ROOT, 'homepage', 'hero');
+      } else if (isCareer) {
+        uploadPath = path.join(UPLOAD_ROOT, 'careers', 'hero'); // 👈 Save here
+      } else {
+        uploadPath = path.join(UPLOAD_ROOT, 'application-pages', 'hero');
+      }
+      break;
     }
-    // Product routes
-    else if (file.fieldname === 'mainImage') {
-      uploadPath = path.join(UPLOAD_ROOT, 'products', 'main');
+      default:
+        uploadPath = path.join(UPLOAD_ROOT, 'temp');
     }
-    else if (file.fieldname === 'gallery') {
-      uploadPath = path.join(UPLOAD_ROOT, 'products', 'gallery');
-    }
-    // Hero section for application pages
-    else if (file.fieldname === 'heroImage') {
-      uploadPath = path.join(UPLOAD_ROOT, 'application-pages', 'hero');
-    }
-    // Hero section for homepage
-    else if (file.fieldname === 'heroBackground') {
-      uploadPath = path.join(UPLOAD_ROOT, 'homepage', 'hero');
-    }
-    else if (file.fieldname === 'heroImage') {
-      uploadPath = path.join(UPLOAD_ROOT, 'homepage', 'hero');
-    }
-    // Default
-    else {
-      uploadPath = path.join(UPLOAD_ROOT, 'temp');
-    }
-    
+
     ensureDir(uploadPath);
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename
     const timestamp = Date.now();
-    const random = Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const filename = `${file.fieldname}-${timestamp}-${random}${ext}`;
-    cb(null, filename);
-  }
+    const random    = Math.round(Math.random() * 1e9);
+    const ext       = path.extname(file.originalname).toLowerCase();
+    cb(null, `${file.fieldname}-${timestamp}-${random}${ext}`);
+  },
 });
 
-// File filter for images only
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif|webp|svg/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+// ---------- File filter ----------
+const imageTypes = /jpeg|jpg|png|gif|webp|svg/;
+const docExts    = /pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|txt|csv/;
+const docMimes   = /pdf|msword|officedocument|excel|powerpoint|zip|rar|text|csv/;
 
-  if (mimetype && extname) {
-    cb(null, true);
-  } else {
-    cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp, svg)'));
+const fileFilter = (req, file, cb) => {
+  const ext  = path.extname(file.originalname).toLowerCase().replace('.', '');
+  const mime = file.mimetype || '';
+
+  if (file.fieldname === 'fileUpload') {
+    if (docExts.test(ext) && docMimes.test(mime)) return cb(null, true);
+    return cb(
+      new Error('fileUpload must be a document (pdf, doc, docx, xls, xlsx, ppt, pptx, zip, rar, txt, csv)')
+    );
   }
+
+  // Everything else is expected to be an image
+  if (imageTypes.test(ext) && imageTypes.test(mime)) return cb(null, true);
+  cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp, svg)'));
 };
 
-// Create multer instance
+// ---------- Multer instance ----------
 const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB
-  },
-  fileFilter: fileFilter
+  storage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB — raised for documents
+  fileFilter,
 });
 
-// Specific upload configurations
+// ---------- Field configs ----------
 const uploadBrandLogo = upload.single('logo');
-const uploadProductImages = upload.fields([
-  { name: 'mainImage', maxCount: 1 },
-  { name: 'gallery', maxCount: 10 }
+
+
+const uploadProductImagesBase = upload.fields([
+  { name: 'mainImage',  maxCount: 1  },
+  { name: 'gallery',    maxCount: 10 },
+  { name: 'fileUpload', maxCount: 1  },
 ]);
 
-// Application Pages - Hero section image
-const uploadHeroImage = upload.single('heroImage');
+// ---------- Safe wrapper: cleanup partial files on error ----------
+const cleanupOnError = (err, req) => {
+  const files = req.files;
+  if (!files) return;
 
-// Homepage hero image
+  const list = Array.isArray(files)
+    ? files
+    : Object.values(files).flat();
+
+  list.forEach((f) => {
+    try {
+      if (f?.path && fs.existsSync(f.path)) fs.unlinkSync(f.path);
+    } catch (_) { /* ignore */ }
+  });
+};
+
+const uploadProductImages = (req, res, next) => {
+  uploadProductImagesBase(req, res, (err) => {
+    if (err) {
+      cleanupOnError(err, req);
+      return next(err);
+    }
+    next();
+  });
+};
+
+// Application Pages + Homepage hero (route-disambiguated by destination logic above)
+const uploadHeroImage     = upload.single('heroImage');
 const uploadHomeHeroImage = upload.single('heroImage');
+const uploadCareerHeroImage = upload.single('heroImage'); 
 
 export {
   upload,
@@ -186,5 +146,6 @@ export {
   uploadProductImages,
   uploadHeroImage,
   uploadHomeHeroImage,
-  UPLOAD_ROOT
+  uploadCareerHeroImage,
+  UPLOAD_ROOT,
 };

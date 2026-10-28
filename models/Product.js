@@ -58,7 +58,6 @@ const productSchema = new mongoose.Schema({
     required: [true, 'Full description is required']
   },
   
-  // Media
   mainImage: {
     type: String,
     required: [true, 'Main image is required']
@@ -66,7 +65,10 @@ const productSchema = new mongoose.Schema({
   gallery: [{
     type: String
   }],
-  
+  fileUpload: {
+    fileName: { type: String },
+    fileUrl: { type: String }
+  },
   // Specifications - flexible object
   specifications: {
     type: mongoose.Schema.Types.Mixed,

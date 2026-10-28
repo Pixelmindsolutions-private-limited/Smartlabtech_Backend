@@ -6,10 +6,24 @@ import Suggestion from '../models/Suggestion.js';
 import fs from 'fs';
 import { processMainImage, processGalleryImage } from '../config/sharp.config.js';
 
-// Helper: Delete product images
+// Helper: Delete product images + uploaded document from disk
 const deleteProductImages = async (product) => {
   const images = [product.mainImage, ...(product.gallery || [])];
-  images.forEach(img => { if (img && fs.existsSync(img)) fs.unlinkSync(img); });
+
+  images.forEach((img) => {
+    if (img && fs.existsSync(img)) {
+      try { fs.unlinkSync(img); } catch (e) { console.warn('unlink failed:', img, e.message); }
+    }
+  });
+
+  // NEW: delete the uploaded document (fileUpload) from disk
+  if (product.fileUpload?.fileUrl) {
+    // stored as "/uploads/products/files/xxx.pdf" — strip leading "/" to make it relative to CWD
+    const filePath = product.fileUpload.fileUrl.replace(/^\/+/, '');
+    if (fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch (e) { console.warn('unlink failed:', filePath, e.message); }
+    }
+  }
 };
 
 // Helper: Parse JSON fields
@@ -23,26 +37,30 @@ const parseJSONFields = (body) => {
 // Helper: Generate slug
 const generateSlug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-// Helper: Add full URLs to product
 const addFullUrls = (product, baseUrl) => {
   const productObj = product.toObject();
-  
-  if (productObj.mainImage && !productObj.mainImage.startsWith('http')) 
+
+  if (productObj.mainImage && !productObj.mainImage.startsWith('http'))
     productObj.mainImage = `${baseUrl}${productObj.mainImage}`;
-  
+
   if (productObj.gallery?.length) {
-    productObj.gallery = productObj.gallery.map(img => 
+    productObj.gallery = productObj.gallery.map(img =>
       img && !img.startsWith('http') ? `${baseUrl}${img}` : img
     );
   }
-  
-  if (productObj.brand?.logo && !productObj.brand.logo.startsWith('http')) 
+
+  if (productObj.brand?.logo && !productObj.brand.logo.startsWith('http'))
     productObj.brand.logo = `${baseUrl}${productObj.brand.logo}`;
-  
+
+  // NEW: fileUpload full URL
+  if (productObj.fileUpload?.fileUrl && !productObj.fileUpload.fileUrl.startsWith('http')) {
+    productObj.fileUpload.fileUrl = `${baseUrl}${productObj.fileUpload.fileUrl}`;
+  }
+
   if (!productObj.slug && productObj.name) productObj.slug = generateSlug(productObj.name);
   delete productObj.mainImageUrl;
   delete productObj.galleryUrls;
-  
+
   return productObj;
 };
 
@@ -91,32 +109,58 @@ export const createProduct = async (req, res) => {
   try {
     req.body = parseJSONFields(req.body);
     const { name, brand, category } = req.body;
-    
+
     if (!name || !brand || !category) {
       const missing = !name ? 'name' : !brand ? 'brand' : 'category';
       return res.status(400).json({ success: false, message: `${missing} is required` });
     }
-    
+
     const slug = generateSlug(name);
     if (await Product.findOne({ $or: [{ name }, { slug }] })) {
       return res.status(400).json({ success: false, message: 'Product with this name already exists' });
     }
-    
+
     const [brandExists, categoryExists] = await Promise.all([
-      Brand.findById(brand), Category.findById(category)
+      Brand.findById(brand),
+      Category.findById(category),
     ]);
     if (!brandExists) return res.status(400).json({ success: false, message: 'Brand not found' });
     if (!categoryExists) return res.status(400).json({ success: false, message: 'Category not found' });
-    
+
+    // -------- fileUpload (inline) --------
+    let fileUpload = null;
+    const uploadedFile = req.files?.fileUpload?.[0];
+    const userFileName = (req.body.fileName || '').trim();   // user-typed
+
+    if (uploadedFile) {
+      fileUpload = {
+        fileName: userFileName || uploadedFile.originalname,   // fallback if user left blank
+        fileUrl: `/uploads/products/files/${uploadedFile.filename}`,
+      };
+    }
+    // -------------------------------------
+
+    delete req.body.fileName;
+
+
     const images = await processProductImages(req.files);
+
     const product = await Product.create({
-      ...req.body, slug, ...images,
-      brandName: brandExists.name, categoryName: categoryExists.name
+      ...req.body,
+      slug,
+      ...images,
+      ...(fileUpload && { fileUpload }),
+      brandName: brandExists.name,
+      categoryName: categoryExists.name,
     });
-    
+
     await product.populate('brand category');
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.status(201).json({ success: true, message: 'Product created successfully', data: addFullUrls(product, baseUrl) });
+    res.status(201).json({
+      success: true,
+      message: 'Product created successfully',
+      data: addFullUrls(product, baseUrl),
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -295,35 +339,89 @@ export const updateProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-    
+
     req.body = parseJSONFields(req.body);
-    
+
+    // Slug regeneration on name change
     if (req.body.name && req.body.name !== product.name) {
       req.body.slug = generateSlug(req.body.name);
       if (await Product.findOne({ slug: req.body.slug, _id: { $ne: req.params.id } })) {
         return res.status(400).json({ success: false, message: 'Product with similar name already exists' });
       }
     }
-    
+
+    // ---------- Handle uploaded files (per-field) ----------
     if (req.files) {
-      await deleteProductImages(product);
-      const images = await processProductImages(req.files);
-      Object.assign(req.body, images);
+      // images (per your existing logic — keep unchanged)
+      if (req.files.mainImage?.[0] || req.files.gallery?.length) {
+        /* ... your existing image replacement logic ... */
+      }
+
+      // fileUpload replacement
+      const newDoc = req.files.fileUpload?.[0];
+      const userFileName = (req.body.fileName || '').trim();
+
+      if (newDoc) {
+        // delete old file from disk
+        if (product.fileUpload?.fileUrl) {
+          const oldPath = product.fileUpload.fileUrl.replace(/^\/+/, '');
+          if (fs.existsSync(oldPath)) { try { fs.unlinkSync(oldPath); } catch (_) {} }
+        }
+
+        req.body.fileUpload = {
+          fileName: userFileName || newDoc.originalname,
+          fileUrl: `/uploads/products/files/${newDoc.filename}`,
+        };
+      } else if (req.body.fileName !== undefined) {
+        // user only updated the display name (no new file)
+        if (product.fileUpload?.fileUrl) {
+          req.body.fileUpload = {
+            fileName: userFileName,
+            fileUrl: product.fileUpload.fileUrl,   // keep existing URL
+          };
+        }
+      }
+    } else {
+      // JSON body, no files
+      if (req.body.fileName !== undefined) {
+        // update only the display name on existing fileUpload
+        if (product.fileUpload?.fileUrl) {
+          req.body.fileUpload = {
+            fileName: (req.body.fileName || '').trim(),
+            fileUrl: product.fileUpload.fileUrl,
+          };
+        }
+      }
     }
-    
+
+    // always strip the raw text field
+    delete req.body.fileName;
+    // --------------------------------------------------------
+
+    // Brand change → refresh brandName
     if (req.body.brand && req.body.brand !== product.brand.toString()) {
       const brand = await Brand.findById(req.body.brand);
       if (brand) req.body.brandName = brand.name;
     }
-    
+
+    // Category change → refresh categoryName
     if (req.body.category && req.body.category !== product.category.toString()) {
       const category = await Category.findById(req.body.category);
       if (category) req.body.categoryName = category.name;
     }
-    
-    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('brand category');
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).populate('brand category');
+
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    res.json({ success: true, message: 'Product updated successfully', data: addFullUrls(updatedProduct, baseUrl) });
+    res.json({
+      success: true,
+      message: 'Product updated successfully',
+      data: addFullUrls(updatedProduct, baseUrl),
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
