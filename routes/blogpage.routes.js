@@ -23,13 +23,13 @@ router.get('/:id', getBlogById);
 // Blog Hero (Admin)
 router.route('/hero')
   .get(getBlogHero)
-  .post(protect, authorize('admin'), upload.single('image'), createBlogHero)
-  .put(protect, authorize('admin'), upload.single('image'), updateBlogHero)
-  .delete(protect, authorize('admin'), deleteBlogHero);
+  .post(protect, authorize('admin', 'staff'), upload.single('image'), createBlogHero)
+  .put(protect, authorize('admin', 'staff'), upload.single('image'), updateBlogHero)
+  .delete(protect, authorize('admin', 'staff'), deleteBlogHero);
 
 // Blogs (Admin)
-router.post('/', protect, authorize('admin'), blogUploadFields, createBlog);
-router.put('/:id', protect, authorize('admin'), blogUploadFields, updateBlog);
-router.delete('/:id', protect, authorize('admin'), deleteBlog);
+router.post('/', protect, authorize('admin', 'staff'), blogUploadFields, createBlog);
+router.put('/:id', protect, authorize('admin', 'staff'), blogUploadFields, updateBlog);
+router.delete('/:id', protect, authorize('admin', 'staff'), deleteBlog);
 
 export default router;

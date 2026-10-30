@@ -26,16 +26,16 @@ const policyUploadFields = upload.fields([
 router.get('/', getFooter);
 
 // Admin routes
-router.post('/', protect, authorize('admin'), policyUploadFields, createFooter);
-router.put('/', protect, authorize('admin'), policyUploadFields, updateFooter);
-router.delete('/', protect, authorize('admin'), deleteFooter);
+router.post('/', protect, authorize('admin', 'staff'), policyUploadFields, createFooter);
+router.put('/', protect, authorize('admin', 'staff'), policyUploadFields, updateFooter);
+router.delete('/', protect, authorize('admin', 'staff'), deleteFooter);
 
 // Product links
-router.post('/products', protect, authorize('admin'), addProductLink);
-router.delete('/products/:index', protect, authorize('admin'), removeProductLink);
+router.post('/products', protect, authorize('admin', 'staff'), addProductLink);
+router.delete('/products/:index', protect, authorize('admin', 'staff'), removeProductLink);
 
 // Service links
-router.post('/services', protect, authorize('admin'), addServiceLink);
-router.delete('/services/:index', protect, authorize('admin'), removeServiceLink);
+router.post('/services', protect, authorize('admin', 'staff'), addServiceLink);
+router.delete('/services/:index', protect, authorize('admin', 'staff'), removeServiceLink);
 
 export default router;

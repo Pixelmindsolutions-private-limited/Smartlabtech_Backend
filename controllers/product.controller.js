@@ -4,7 +4,12 @@ import { Blog } from '../models/BlogsPage.js';
 import Category from '../models/Category.js';
 import Suggestion from '../models/Suggestion.js';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { processMainImage, processGalleryImage } from '../config/sharp.config.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Helper: Delete product images + uploaded document from disk
 const deleteProductImages = async (product) => {
@@ -342,7 +347,7 @@ export const updateProduct = async (req, res) => {
 
     req.body = parseJSONFields(req.body);
 
-    // Slug regeneration on name change
+    // 1. Slug regeneration on name change
     if (req.body.name && req.body.name !== product.name) {
       req.body.slug = generateSlug(req.body.name);
       if (await Product.findOne({ slug: req.body.slug, _id: { $ne: req.params.id } })) {
@@ -350,66 +355,127 @@ export const updateProduct = async (req, res) => {
       }
     }
 
-    // ---------- Handle uploaded files (per-field) ----------
+    // Keep track of the current gallery state
+    let currentGallery = product.gallery || [];
+
+    // 2. Handle uploaded files (Main Image, New Gallery Images, File Upload)
     if (req.files) {
-      // images (per your existing logic — keep unchanged)
-      if (req.files.mainImage?.[0] || req.files.gallery?.length) {
-        /* ... your existing image replacement logic ... */
+      // A. Main Image (Replaces existing)
+      if (req.files.mainImage && req.files.mainImage[0]) {
+        const newMainImage = await processMainImage(req.files.mainImage[0].path);
+        req.body.mainImage = newMainImage;
+        
+        if (product.mainImage && fs.existsSync(product.mainImage)) {
+          try { fs.unlinkSync(product.mainImage); } catch (e) {}
+        }
       }
 
-      // fileUpload replacement
+      // B. Gallery Images (APPENDS to existing)
+      if (req.files.gallery && req.files.gallery.length > 0) {
+        const newGallery = await Promise.all(
+          req.files.gallery.map(file => processGalleryImage(file.path))
+        );
+        currentGallery = [...currentGallery, ...newGallery];
+      }
+
+      // C. File Upload / Brochure
       const newDoc = req.files.fileUpload?.[0];
       const userFileName = (req.body.fileName || '').trim();
 
       if (newDoc) {
-        // delete old file from disk
         if (product.fileUpload?.fileUrl) {
           const oldPath = product.fileUpload.fileUrl.replace(/^\/+/, '');
           if (fs.existsSync(oldPath)) { try { fs.unlinkSync(oldPath); } catch (_) {} }
         }
-
         req.body.fileUpload = {
           fileName: userFileName || newDoc.originalname,
           fileUrl: `/uploads/products/files/${newDoc.filename}`,
         };
-      } else if (req.body.fileName !== undefined) {
-        // user only updated the display name (no new file)
-        if (product.fileUpload?.fileUrl) {
-          req.body.fileUpload = {
-            fileName: userFileName,
-            fileUrl: product.fileUpload.fileUrl,   // keep existing URL
-          };
-        }
-      }
-    } else {
-      // JSON body, no files
-      if (req.body.fileName !== undefined) {
-        // update only the display name on existing fileUpload
-        if (product.fileUpload?.fileUrl) {
-          req.body.fileUpload = {
-            fileName: (req.body.fileName || '').trim(),
-            fileUrl: product.fileUpload.fileUrl,
-          };
-        }
+      } else if (req.body.fileName !== undefined && product.fileUpload?.fileUrl) {
+        req.body.fileUpload = {
+          fileName: userFileName,
+          fileUrl: product.fileUpload.fileUrl,
+        };
       }
     }
 
-    // always strip the raw text field
-    delete req.body.fileName;
-    // --------------------------------------------------------
+    // 3. Handle REMOVING specific gallery images (DB + Server)
+    if (req.body.removedGallery) {
+      let toRemove = [];
+      
+      try {
+        // Parse the array (Postman/cURL sends it as a stringified JSON array)
+        toRemove = typeof req.body.removedGallery === 'string' 
+          ? JSON.parse(req.body.removedGallery) 
+          : req.body.removedGallery;
+      } catch (e) {
+        // Fallback if it's just a single string
+        toRemove = [req.body.removedGallery];
+      }
 
-    // Brand change → refresh brandName
+      // Clean the array to ensure we only have pure URLs
+      if (Array.isArray(toRemove)) {
+        toRemove = toRemove.map(url => url.replace(/[\[\]"]/g, '').trim());
+      }
+
+      if (toRemove.length > 0) {
+        console.log("🗑️ Removing images from DB:", toRemove);
+        
+        // A. Remove URLs from the database array
+        currentGallery = currentGallery.filter(img => !toRemove.includes(img));
+        
+        // B. Delete physical files safely from the server
+        const galleryDir = path.join(process.cwd(), 'uploads', 'products', 'gallery');
+        
+        toRemove.forEach(imgUrl => {
+          if (imgUrl) {
+            // 1. Get the filename without the extension
+            const baseName = path.parse(imgUrl).name; 
+            
+            if (fs.existsSync(galleryDir)) {
+              const files = fs.readdirSync(galleryDir);
+              
+              // 2. Find ANY file that starts with this baseName (catches .jpg, .webp, .png)
+              const matches = files.filter(f => f.startsWith(baseName));
+              
+              if (matches.length > 0) {
+                matches.forEach(match => {
+                  try {
+                    fs.unlinkSync(path.join(galleryDir, match));
+                    console.log(`✅ Deleted file from disk: ${match}`);
+                  } catch (err) {
+                    console.warn(`❌ Failed to delete file: ${err.message}`);
+                  }
+                });
+              } else {
+                console.warn(`⚠️ File with base name ${baseName} not found in ${galleryDir}`);
+              }
+            }
+          }
+        });
+      }
+      
+      // Delete the helper field so it doesn't get saved to MongoDB
+      delete req.body.removedGallery; 
+    }
+
+    // 4. Apply the final updated gallery array to the request body
+    req.body.gallery = currentGallery;
+
+    // 5. Cleanup
+    delete req.body.fileName;
+
+    // 6. Brand & Category Name Updates
     if (req.body.brand && req.body.brand !== product.brand.toString()) {
       const brand = await Brand.findById(req.body.brand);
       if (brand) req.body.brandName = brand.name;
     }
-
-    // Category change → refresh categoryName
     if (req.body.category && req.body.category !== product.category.toString()) {
       const category = await Category.findById(req.body.category);
       if (category) req.body.categoryName = category.name;
     }
 
+    // 7. Save to Database
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -417,12 +483,15 @@ export const updateProduct = async (req, res) => {
     ).populate('brand category');
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
     res.json({
       success: true,
       message: 'Product updated successfully',
       data: addFullUrls(updatedProduct, baseUrl),
     });
+    
   } catch (error) {
+    console.error("Update Product Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -11,7 +11,7 @@ import { protect, authorize } from '../middleware/auth.middleware.js';
 const router = express.Router();
 
 // All dashboard routes require admin authentication
-router.use(protect, authorize('admin'));
+router.use(protect, authorize('admin', 'staff'));
 
 router.get('/stats', getDashboardStats);
 router.get('/charts', getChartData);

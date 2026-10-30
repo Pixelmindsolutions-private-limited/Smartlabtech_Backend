@@ -25,15 +25,15 @@ router.get('/category/:categoryId', getProductsByCategory);
 router.get('/:id', getProductById);
 
 // Admin routes
-router.post('/', protect, authorize('admin'), uploadProductImages, createProduct);
-router.put('/:id', protect, authorize('admin'), uploadProductImages, updateProduct);
-router.delete('/:id', protect, authorize('admin'), deleteProduct);
-router.patch('/:id/toggle', protect, authorize('admin'), toggleProductStatus);
+router.post('/', protect, authorize('admin', 'staff'), uploadProductImages, createProduct);
+router.put('/:id', protect, authorize('admin', 'staff'), uploadProductImages, updateProduct);
+router.delete('/:id', protect, authorize('admin', 'staff'), deleteProduct);
+router.patch('/:id/toggle', protect, authorize('admin', 'staff'), toggleProductStatus);
 
 // Suggestions routes (Admin)
-router.post('/suggestions', protect, authorize('admin'), addProductSuggestion);
-router.post('/suggestions/bulk', protect, authorize('admin'), bulkAddProductSuggestions);
-router.delete('/suggestions/:productId', protect, authorize('admin'), removeProductSuggestion);
-router.patch('/suggestions/:productId/toggle', protect, authorize('admin'), toggleSuggestionStatus);
+router.post('/suggestions', protect, authorize('admin', 'staff'), addProductSuggestion);
+router.post('/suggestions/bulk', protect, authorize('admin', 'staff'), bulkAddProductSuggestions);
+router.delete('/suggestions/:productId', protect, authorize('admin', 'staff'), removeProductSuggestion);
+router.patch('/suggestions/:productId/toggle', protect, authorize('admin', 'staff'), toggleSuggestionStatus);
 
 export default router;

@@ -13,7 +13,7 @@ const router = express.Router();
 router.post(
     '/addstaff',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     uploadStaffImage,
     staffController.addStaff
 );
@@ -26,7 +26,7 @@ router.post(
 router.post(
     '/getall-staff',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     staffController.getAllStaff
 );
 
@@ -38,7 +38,7 @@ router.post(
 router.post(
     '/getstaffbyid',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     staffController.getStaffById
 );
 
@@ -50,7 +50,7 @@ router.post(
 router.put(
     '/updatestaff/:id',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     uploadStaffImage,
     staffController.editStaff
 );
@@ -63,21 +63,21 @@ router.put(
 router.delete(
     '/deletestaff/:id',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     staffController.deleteStaff
 );
 
 router.post(
     '/getall-active-staff',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     staffController.getAllActiveStaff
 );
 
 router.put(
     '/changepassword/:id',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     staffController.changeStaffPassword
 );
 
@@ -87,12 +87,12 @@ router.post(
 );
 
 router.post(
-    '/getprofile', 
+    '/getprofile', protect, authorize('admin', 'staff'),
     staffController.getStaffProfile
 );
 
 router.post(
-    '/getrolesandpermissions', 
+    '/getrolesandpermissions', protect, authorize('admin', 'staff'),
     staffController.getrolesandpermissions
 );
 

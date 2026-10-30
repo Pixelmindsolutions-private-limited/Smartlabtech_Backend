@@ -63,6 +63,14 @@ export const addStaff = async function (req, res) {
                 message: "Role not found"
             });
         }
+        let imageUrl = "";
+        if (req.file) {
+            // Extracts just the relative path: /uploads/staff/staffImage-12345.jpg
+            // This is crucial for the frontend to load the image correctly
+            const relativePath = req.file.path.split('uploads')[1].replace(/\\/g, '/');
+            imageUrl = `/uploads${relativePath}`;
+        }
+
 
         const staffObj = new staffModel({
             name: req.body.name,
@@ -74,7 +82,7 @@ export const addStaff = async function (req, res) {
 
 
             roleId: req.body.roleId,
-            image: req.file ? req.file.path : "",
+            image: imageUrl,
             address: req.body.address,
 
 
@@ -271,10 +279,10 @@ export const editStaff = async function (req, res) {
             address: req.body.address,
 
         };
-
-        // Only update image if a new image was uploaded
         if (req.file) {
-            updateData.image = req.file.path;
+            // Extracts just the relative path
+            const relativePath = req.file.path.split('uploads')[1].replace(/\\/g, '/');
+            updateData.image = `/uploads${relativePath}`; // ✅ Now saving the correct web URL
         }
 
         const staff = await staffModel.findByIdAndUpdate(
@@ -650,9 +658,6 @@ export const changeStaffPassword = async function (req, res) {
 // ============================================================
 export const staffLogin = async (req, res) => {
     try {
-        const istDateTime = DateTime.now().setZone("Asia/Kolkata");
-        const logDate = istDateTime.toISO({ includeOffset: true });
-        const time = istDateTime.toFormat("hh:mm a");
         const { email, password } = req.body;
 
         // ============================================================
@@ -681,12 +686,6 @@ export const staffLogin = async (req, res) => {
                 message: "Invalid email/phone or password"
             });
         }
-
-        await StaffLogs.create({
-            staffId: staff._id,
-            date: logDate.slice(0, 10),
-            time: time,
-        });
 
         // ============================================================
         // CHECK STAFF STATUS
@@ -801,7 +800,7 @@ export const staffLogin = async (req, res) => {
                 staffId: staff._id,
                 role: "staff"
             },
-            process.env.ADMIN_SECRET_KEY
+            process.env.JWT_SECRET
         );
 
         // ============================================================

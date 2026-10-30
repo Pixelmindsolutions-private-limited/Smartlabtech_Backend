@@ -10,7 +10,7 @@ const router = express.Router();
 router.post(
     '/adddepartment',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     departmentController.createDepartment
 );
 
@@ -21,7 +21,7 @@ router.post(
 router.post(
     '/getall-departments',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     departmentController.getAllDepartments
 );
 
@@ -32,7 +32,7 @@ router.post(
 router.post(
     '/getall-activedepartments',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     departmentController.getAllActiveDepartments
 );
 
@@ -43,7 +43,7 @@ router.post(
 router.post(
     '/getdepartmentbyid',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     departmentController.getSingleDepartment
 );
 
@@ -54,7 +54,7 @@ router.post(
 router.put(
     '/updatedepartment/:id',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     departmentController.updateDepartment
 );
 
@@ -65,7 +65,7 @@ router.put(
 router.delete(
     '/deletedepartment/:id',
     protect,
-    authorize('admin'),
+    authorize('admin', 'staff'),
     departmentController.deleteDepartment
 );
 

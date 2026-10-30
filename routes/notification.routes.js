@@ -14,7 +14,7 @@ import { protect, authorize } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-router.use(protect, authorize('admin'));
+router.use(protect, authorize('admin', 'staff'));
 
 router.get('/', getAllNotifications);
 router.get('/unread/count', getUnreadCount);

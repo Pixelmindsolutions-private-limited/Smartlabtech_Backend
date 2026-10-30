@@ -18,8 +18,8 @@ router.get('/options', getBrandOptions);
 router.get('/:id', getBrandById);
 
 // Admin routes
-router.post('/', protect, authorize('admin'), uploadBrandLogo, createBrand);
-router.put('/:id', protect, authorize('admin'), uploadBrandLogo, updateBrand);
-router.delete('/:id', protect, authorize('admin'), deleteBrand);
+router.post('/', protect, authorize('admin', 'staff'), uploadBrandLogo, createBrand);
+router.put('/:id', protect, authorize('admin', 'staff'), uploadBrandLogo, updateBrand);
+router.delete('/:id', protect, authorize('admin', 'staff'), deleteBrand);
 
 export default router;
