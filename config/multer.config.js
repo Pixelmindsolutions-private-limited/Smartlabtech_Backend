@@ -99,7 +99,7 @@ const fileFilter = (req, file, cb) => {
 // ---------- Multer instance ----------
 const upload = multer({
   storage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB — raised for documents
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB — raised for documents
   fileFilter,
 });
 

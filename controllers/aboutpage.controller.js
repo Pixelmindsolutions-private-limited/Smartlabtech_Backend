@@ -171,7 +171,9 @@ if (req.body.title) aboutPage.hero.title = req.body.title;
 if (req.body.tag !== undefined) aboutPage.hero.tag = req.body.tag;
 if (req.body.description) aboutPage.hero.description = req.body.description;
 if (image) aboutPage.hero.image = image;
-if (req.body.isActive !== undefined) aboutPage.hero.isActive = req.body.isActive === 'true';
+if (req.body.isActive !== undefined) {
+aboutPage.hero.isActive = req.body.isActive === true || req.body.isActive === 'true';
+}
 
 await aboutPage.save();
 const baseUrl = `${req.protocol}://${req.get('host')}`;

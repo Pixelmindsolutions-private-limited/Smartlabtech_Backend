@@ -18,7 +18,7 @@ const heroSchema = new mongoose.Schema({
   },
   image: {
     type: String,
-    required: [true, 'Hero image is required']
+    required: [function() { return this.isNew; }, 'Hero image is required']
   },
   isActive: {
     type: Boolean,
@@ -194,5 +194,4 @@ const aboutPageSchema = new mongoose.Schema({
 
 const AboutPage = mongoose.model('AboutPage', aboutPageSchema);
 export default AboutPage;
-
 
