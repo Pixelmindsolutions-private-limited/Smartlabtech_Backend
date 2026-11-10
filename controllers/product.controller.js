@@ -340,6 +340,190 @@ export const getProductsByCategory = async (req, res) => {
   }
 };
 
+// export const updateProduct = async (req, res) => {
+//   try {
+//     const product = await Product.findById(req.params.id);
+//     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+
+//     req.body = parseJSONFields(req.body);
+
+//     // 1. Slug regeneration on name change
+//     if (req.body.name && req.body.name !== product.name) {
+//       req.body.slug = generateSlug(req.body.name);
+//       if (await Product.findOne({ slug: req.body.slug, _id: { $ne: req.params.id } })) {
+//         return res.status(400).json({ success: false, message: 'Product with similar name already exists' });
+//       }
+//     }
+
+//     // Keep track of the current gallery state
+//     let currentGallery = product.gallery || [];
+
+//     // 2. Handle uploaded files (Main Image, New Gallery Images, File Upload)
+//     if (req.files) {
+//       // A. Main Image (Replaces existing)
+//       if (req.files.mainImage && req.files.mainImage[0]) {
+//         const newMainImage = await processMainImage(req.files.mainImage[0].path);
+//         req.body.mainImage = newMainImage;
+        
+//         if (product.mainImage && fs.existsSync(product.mainImage)) {
+//           try { fs.unlinkSync(product.mainImage); } catch (e) {}
+//         }
+//       }
+
+//       // B. Gallery Images (APPENDS to existing)
+//       if (req.files.gallery && req.files.gallery.length > 0) {
+//         const newGallery = await Promise.all(
+//           req.files.gallery.map(file => processGalleryImage(file.path))
+//         );
+//         currentGallery = [...currentGallery, ...newGallery];
+//       }
+
+//       // C. File Upload / Brochure
+//       const newDoc = req.files.fileUpload?.[0];
+//       const userFileName = (req.body.fileName || '').trim();
+
+//       if (newDoc) {
+//         if (product.fileUpload?.fileUrl) {
+//           const oldPath = product.fileUpload.fileUrl.replace(/^\/+/, '');
+//           if (fs.existsSync(oldPath)) { try { fs.unlinkSync(oldPath); } catch (_) {} }
+//         }
+//         req.body.fileUpload = {
+//           fileName: userFileName || newDoc.originalname,
+//           fileUrl: `/uploads/products/files/${newDoc.filename}`,
+//         };
+//       } else if (req.body.fileName !== undefined && product.fileUpload?.fileUrl) {
+//         req.body.fileUpload = {
+//           fileName: userFileName,
+//           fileUrl: product.fileUpload.fileUrl,
+//         };
+//       }
+//     }
+
+//     // 3. Handle REMOVING specific gallery images (DB + Server)
+//     if (req.body.removedGallery) {
+//       let toRemove = [];
+      
+//       try {
+//         // Parse the array (Postman/cURL sends it as a stringified JSON array)
+//         toRemove = typeof req.body.removedGallery === 'string' 
+//           ? JSON.parse(req.body.removedGallery) 
+//           : req.body.removedGallery;
+//       } catch (e) {
+//         // Fallback if it's just a single string
+//         toRemove = [req.body.removedGallery];
+//       }
+
+//       // Clean the array to ensure we only have pure URLs
+//       if (Array.isArray(toRemove)) {
+//         toRemove = toRemove.map(url => url.replace(/[\[\]"]/g, '').trim());
+//       }
+
+//       if (toRemove.length > 0) {
+//         console.log("🗑️ Removing images from DB:", toRemove);
+        
+//         // A. Remove URLs from the database array
+//         currentGallery = currentGallery.filter(img => !toRemove.includes(img));
+        
+//         // B. Delete physical files safely from the server
+//         const galleryDir = path.join(process.cwd(), 'uploads', 'products', 'gallery');
+        
+//         toRemove.forEach(imgUrl => {
+//           if (imgUrl) {
+//             // 1. Get the filename without the extension
+//             const baseName = path.parse(imgUrl).name; 
+            
+//             if (fs.existsSync(galleryDir)) {
+//               const files = fs.readdirSync(galleryDir);
+              
+//               // 2. Find ANY file that starts with this baseName (catches .jpg, .webp, .png)
+//               const matches = files.filter(f => f.startsWith(baseName));
+              
+//               if (matches.length > 0) {
+//                 matches.forEach(match => {
+//                   try {
+//                     fs.unlinkSync(path.join(galleryDir, match));
+//                     console.log(`✅ Deleted file from disk: ${match}`);
+//                   } catch (err) {
+//                     console.warn(`❌ Failed to delete file: ${err.message}`);
+//                   }
+//                 });
+//               } else {
+//                 console.warn(`⚠️ File with base name ${baseName} not found in ${galleryDir}`);
+//               }
+//             }
+//           }
+//         });
+//       }
+      
+//       // Delete the helper field so it doesn't get saved to MongoDB
+//       delete req.body.removedGallery; 
+//     }
+
+//     // 4. Apply the final updated gallery array to the request body
+//     req.body.gallery = currentGallery;
+
+//     // 5. Cleanup
+//     delete req.body.fileName;
+
+//     // 6. Brand & Category Name Updates
+//     if (req.body.brand && req.body.brand !== product.brand.toString()) {
+//       const brand = await Brand.findById(req.body.brand);
+//       if (brand) req.body.brandName = brand.name;
+//     }
+//     if (req.body.category && req.body.category !== product.category.toString()) {
+//       const category = await Category.findById(req.body.category);
+//       if (category) req.body.categoryName = category.name;
+//     }
+
+//     // 7. Save to Database
+//     const updatedProduct = await Product.findByIdAndUpdate(
+//       req.params.id,
+//       req.body,
+//       { new: true, runValidators: true }
+//     ).populate('brand category');
+
+//     const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
+//     res.json({
+//       success: true,
+//       message: 'Product updated successfully',
+//       data: addFullUrls(updatedProduct, baseUrl),
+//     });
+    
+//   } catch (error) {
+//     console.error("Update Product Error:", error);
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
+
+
+// Helpers for gallery handling (place above updateProduct in the same file)
+
+// Compare images by file name only, so it doesn't matter whether the DB holds
+// a relative path, a Windows path, or a full URL with a different host/protocol
+// (e.g. DB: "uploads\\products\\gallery\\a.jpg"  vs  client: "http://host/uploads/products/gallery/a.jpg")
+const galleryKey = (u) =>
+  path.basename(String(u || '').replace(/\\/g, '/').split('?')[0]).trim();
+
+// Accepts an array, a JSON-stringified array, or a single string
+const parseList = (raw) => {
+  let list = [];
+  if (Array.isArray(raw)) {
+    list = raw;
+  } else if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      list = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+      list = [raw];
+    }
+  }
+  return list
+    .filter((x) => typeof x === 'string')
+    .map((x) => x.replace(/[\[\]"]/g, '').trim())
+    .filter(Boolean);
+};
+
 export const updateProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -355,8 +539,9 @@ export const updateProduct = async (req, res) => {
       }
     }
 
-    // Keep track of the current gallery state
-    let currentGallery = product.gallery || [];
+    // Gallery state
+    const storedGallery = product.gallery || [];
+    let newGalleryImages = [];
 
     // 2. Handle uploaded files (Main Image, New Gallery Images, File Upload)
     if (req.files) {
@@ -364,18 +549,17 @@ export const updateProduct = async (req, res) => {
       if (req.files.mainImage && req.files.mainImage[0]) {
         const newMainImage = await processMainImage(req.files.mainImage[0].path);
         req.body.mainImage = newMainImage;
-        
+
         if (product.mainImage && fs.existsSync(product.mainImage)) {
           try { fs.unlinkSync(product.mainImage); } catch (e) {}
         }
       }
 
-      // B. Gallery Images (APPENDS to existing)
+      // B. Gallery Images (new uploads)
       if (req.files.gallery && req.files.gallery.length > 0) {
-        const newGallery = await Promise.all(
+        newGalleryImages = await Promise.all(
           req.files.gallery.map(file => processGalleryImage(file.path))
         );
-        currentGallery = [...currentGallery, ...newGallery];
       }
 
       // C. File Upload / Brochure
@@ -400,67 +584,68 @@ export const updateProduct = async (req, res) => {
     }
 
     // 3. Handle REMOVING specific gallery images (DB + Server)
+    const removedKeys = new Set();
+    
+    // ONLY process removedGallery
     if (req.body.removedGallery) {
-      let toRemove = [];
-      
-      try {
-        // Parse the array (Postman/cURL sends it as a stringified JSON array)
-        toRemove = typeof req.body.removedGallery === 'string' 
-          ? JSON.parse(req.body.removedGallery) 
-          : req.body.removedGallery;
-      } catch (e) {
-        // Fallback if it's just a single string
-        toRemove = [req.body.removedGallery];
-      }
-
-      // Clean the array to ensure we only have pure URLs
-      if (Array.isArray(toRemove)) {
-        toRemove = toRemove.map(url => url.replace(/[\[\]"]/g, '').trim());
-      }
-
-      if (toRemove.length > 0) {
-        console.log("🗑️ Removing images from DB:", toRemove);
-        
-        // A. Remove URLs from the database array
-        currentGallery = currentGallery.filter(img => !toRemove.includes(img));
-        
-        // B. Delete physical files safely from the server
-        const galleryDir = path.join(process.cwd(), 'uploads', 'products', 'gallery');
-        
-        toRemove.forEach(imgUrl => {
-          if (imgUrl) {
-            // 1. Get the filename without the extension
-            const baseName = path.parse(imgUrl).name; 
-            
-            if (fs.existsSync(galleryDir)) {
-              const files = fs.readdirSync(galleryDir);
-              
-              // 2. Find ANY file that starts with this baseName (catches .jpg, .webp, .png)
-              const matches = files.filter(f => f.startsWith(baseName));
-              
-              if (matches.length > 0) {
-                matches.forEach(match => {
-                  try {
-                    fs.unlinkSync(path.join(galleryDir, match));
-                    console.log(`✅ Deleted file from disk: ${match}`);
-                  } catch (err) {
-                    console.warn(`❌ Failed to delete file: ${err.message}`);
-                  }
-                });
-              } else {
-                console.warn(`⚠️ File with base name ${baseName} not found in ${galleryDir}`);
-              }
-            }
-          }
-        });
-      }
-      
-      // Delete the helper field so it doesn't get saved to MongoDB
-      delete req.body.removedGallery; 
+      parseList(req.body.removedGallery).forEach((u) => removedKeys.add(galleryKey(u)));
+      delete req.body.removedGallery;
     }
 
-    // 4. Apply the final updated gallery array to the request body
-    req.body.gallery = currentGallery;
+    // A. Remove from the database array
+    const keptGallery = storedGallery.filter((img) => !removedKeys.has(galleryKey(img)));
+
+    // B. Delete the physical files from the server
+    if (removedKeys.size > 0) {
+      console.log('🗑️ Removing gallery images from DB & Disk:', [...removedKeys]);
+
+      // Bulletproof path resolver
+      const possibleDirs = [
+        path.join(process.cwd(), 'uploads', 'products', 'gallery'),
+        path.join(__dirname, '..', 'uploads', 'products', 'gallery'), 
+        path.join(__dirname, 'uploads', 'products', 'gallery') 
+      ];
+
+      let galleryDir = null;
+      for (const dir of possibleDirs) {
+        if (fs.existsSync(dir)) {
+          galleryDir = dir;
+          break;
+        }
+      }
+
+      if (galleryDir) {
+        console.log(`📁 Found gallery directory at: ${galleryDir}`);
+        const files = fs.readdirSync(galleryDir);
+
+        removedKeys.forEach((key) => {
+          // key is e.g. "gallery-1794287799025-818681541.jpg" -> baseName "gallery-1794287799025-818681541"
+          const baseName = path.parse(key).name; 
+
+          // Look for the file regardless of extension (.jpg, .webp, etc.)
+          const matchedFiles = files.filter((f) => f.startsWith(baseName));
+
+          if (matchedFiles.length > 0) {
+            matchedFiles.forEach((fileToDelete) => {
+              const fullPath = path.join(galleryDir, fileToDelete);
+              try {
+                fs.unlinkSync(fullPath);
+                console.log(`✅ Successfully deleted physical file: ${fullPath}`);
+              } catch (err) {
+                console.error(`❌ Failed to delete file: ${fullPath}`, err.message);
+              }
+            });
+          } else {
+            console.warn(`⚠️ Could not find physical file starting with: ${baseName}`);
+          }
+        });
+      } else {
+        console.error(`❌ CRITICAL: Could not find the gallery directory on the server!`);
+      }
+    }
+
+    // 4. Final gallery = kept existing images + newly uploaded images
+    req.body.gallery = [...keptGallery, ...newGalleryImages];
 
     // 5. Cleanup
     delete req.body.fileName;
@@ -483,13 +668,13 @@ export const updateProduct = async (req, res) => {
     ).populate('brand category');
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
+
     res.json({
       success: true,
       message: 'Product updated successfully',
       data: addFullUrls(updatedProduct, baseUrl),
     });
-    
+
   } catch (error) {
     console.error("Update Product Error:", error);
     res.status(500).json({ success: false, message: error.message });
