@@ -2,6 +2,7 @@ import Quote from '../models/Quote.js';
 import Category from '../models/Category.js';
 import Product from '../models/Product.js';
 import { createNotification } from './notification.controller.js';
+import { sendFormSubmissionEmail } from '../utils/formSubmissionEmail.js';
 
 // Helper: Add full URLs to product image
 const addProductUrl = (quote, baseUrl) => {
@@ -50,6 +51,17 @@ export const submitQuoteRequest = async (req, res) => {
     await createNotification('quote', quote._id, 'Quote', {
       name: quote.name, email: quote.email, company: quote.company,
       productName: quote.productName, quantity: quote.quantity, usage: quote.usage
+    });
+    await sendFormSubmissionEmail('Quote', {
+      Name: quote.name,
+      'Phone Number': quote.phoneNumber,
+      Email: quote.email,
+      Company: quote.company,
+      City: quote.city,
+      Category: quote.categoryName,
+      Product: quote.productName,
+      'Usage / Purpose': quote.usage,
+      Quantity: quote.quantity
     });
     
     res.status(201).json({ success: true, message: 'Quote request submitted successfully', data: quote });

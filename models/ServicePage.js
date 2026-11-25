@@ -207,12 +207,10 @@ const serviceFormSchema = new mongoose.Schema({
   },
   modelNo: {
     type: String,
-    required: [true, 'Model number is required'],
     trim: true
   },
   serialNo: {
     type: String,
-    required: [true, 'Serial number is required'],
     trim: true
   },
   natureOfProblem: {
@@ -222,12 +220,10 @@ const serviceFormSchema = new mongoose.Schema({
   },
   contractType: {
     type: String,
-    required: [true, 'Contract type is required'],
     trim: true
   },
   poNumber: {
     type: String,
-    required: [true, 'PO number is required'],
     trim: true
   },
   status: {

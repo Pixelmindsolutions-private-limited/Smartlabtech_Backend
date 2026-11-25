@@ -1,5 +1,6 @@
 import { ServicesPage, ServiceForm } from '../models/ServicePage.js';
 import Notification from '../models/Notification.js';
+import { sendFormSubmissionEmail } from '../utils/formSubmissionEmail.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -383,13 +384,13 @@ const createServiceNotification = async (serviceRequest, type = 'new') => {
   try {
     const title = type === 'new' ? 'New Service Request' : 'Service Request Status Updated';
     const message = type === 'new' 
-      ? `${serviceRequest.contactPerson} from ${serviceRequest.companyDetails} has submitted a service request for ${serviceRequest.instrumentType} (Model: ${serviceRequest.modelNo})`
+      ? `${serviceRequest.contactPerson} from ${serviceRequest.companyDetails} has submitted a service request for ${serviceRequest.instrumentType} (Model: ${serviceRequest.modelNo || 'N/A'})`
       : `Service request for ${serviceRequest.instrumentType} (${serviceRequest.modelNo}) status changed to ${serviceRequest.status}`;
     
     return await Notification.create({
       type: 'service', title, message, referenceId: serviceRequest._id, referenceModel: 'ServiceForm',
       priority: type === 'new' ? 'urgent' : 'medium',
-      data: { companyDetails: serviceRequest.companyDetails, contactPerson: serviceRequest.contactPerson, instrumentType: serviceRequest.instrumentType, modelNo: serviceRequest.modelNo, status: serviceRequest.status },
+      data: { companyDetails: serviceRequest.companyDetails, contactPerson: serviceRequest.contactPerson, instrumentType: serviceRequest.instrumentType, modelNo: serviceRequest.modelNo || 'N/A', status: serviceRequest.status },
       isRead: false, isActive: true
     });
   } catch (error) {
@@ -399,12 +400,27 @@ const createServiceNotification = async (serviceRequest, type = 'new') => {
 
 export const submitServiceRequest = async (req, res) => {
   try {
-    const required = ['companyDetails', 'unit', 'location', 'contactPerson', 'designation', 'contactNo', 'email', 'instrumentType', 'modelNo', 'serialNo', 'natureOfProblem', 'contractType', 'poNumber'];
+    const required = ['companyDetails', 'unit', 'location', 'contactPerson', 'designation', 'contactNo', 'email', 'instrumentType', 'natureOfProblem'];
     const missing = required.find(field => !req.body[field]);
     if (missing) return res.status(400).json({ success: false, message: `${missing} is required` });
     
     const serviceRequest = await ServiceForm.create({ ...req.body, status: 'pending', isActive: true });
     await createServiceNotification(serviceRequest, 'new');
+    await sendFormSubmissionEmail('Service request', {
+      Company: serviceRequest.companyDetails,
+      Unit: serviceRequest.unit,
+      Location: serviceRequest.location,
+      'Contact Person': serviceRequest.contactPerson,
+      Designation: serviceRequest.designation,
+      'Contact Number': serviceRequest.contactNo,
+      Email: serviceRequest.email,
+      'Instrument / Equipment Type': serviceRequest.instrumentType,
+      'Model Number': serviceRequest.modelNo || 'N/A',
+      'Serial Number': serviceRequest.serialNo || 'N/A',
+      'Nature of Problem': serviceRequest.natureOfProblem,
+      'Contract Type': serviceRequest.contractType || 'N/A',
+      'PO Number': serviceRequest.poNumber || 'N/A'
+    });
     res.status(201).json({ success: true, message: 'Service request submitted successfully', data: serviceRequest });
   } catch (error) {
     if (error.name === 'ValidationError') {

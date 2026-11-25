@@ -1,5 +1,6 @@
 import { Subject, Contact, ContactPage } from '../models/Contact.js';
 import { createNotification } from './notification.controller.js';
+import { sendFormSubmissionEmail } from '../utils/formSubmissionEmail.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -215,6 +216,14 @@ export const submitContactForm = async (req, res) => {
     await contact.populate('subject', 'name description');
 
     await createNotification('contact', contact._id, 'Contact', { name, email, phone, subjectName: subjectDoc.name, fromPage: req.body.fromPage, message });
+    await sendFormSubmissionEmail('Contact', {
+      Name: contact.name,
+      Email: contact.email,
+      Phone: contact.phone,
+      Subject: contact.subjectName,
+      'Source Page': contact.fromPage,
+      Message: contact.message
+    });
     res.status(201).json({ success: true, message: 'Contact form submitted successfully', data: contact });
   } catch (error) {
     if (error.name === 'ValidationError') {
