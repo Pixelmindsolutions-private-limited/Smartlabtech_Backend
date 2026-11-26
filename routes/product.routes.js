@@ -1,6 +1,6 @@
 import express from 'express';
 import {
-  createProduct, getAllProducts, getProductById, getProductBySlug, getProductVariantBySlug, updateProductVariant, getProductByName,
+  createProduct, getAllProducts, getProductById, getProductBySlug, getProductVariantBySlug, updateProductVariant, deleteProductVariant, getProductByName,
   getFeaturedProducts, getProductsByBrand, getProductsByCategory, updateProduct, deleteProduct,
   toggleProductStatus, searchProducts, getSearchFilters, searchAllContent,
   getProductSuggestions, addProductSuggestion, removeProductSuggestion, toggleSuggestionStatus,getAllProductsAdmin, bulkAddProductSuggestions
@@ -29,6 +29,7 @@ router.get('/:id', getProductById);
 router.post('/', protect, authorize('admin', 'staff'), uploadProductImages, createProduct);
 router.put('/:id', protect, authorize('admin', 'staff'), uploadProductImages, updateProduct);
 router.put('/:productId/variants/:variantId', protect, authorize('admin', 'staff'), uploadProductImages, updateProductVariant);
+router.delete('/:productId/variants/:variantId', protect, authorize('admin', 'staff'), deleteProductVariant);
 router.delete('/:id', protect, authorize('admin', 'staff'), deleteProduct);
 router.patch('/:id/toggle', protect, authorize('admin', 'staff'), toggleProductStatus);
 

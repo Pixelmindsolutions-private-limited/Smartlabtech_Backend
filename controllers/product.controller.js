@@ -680,6 +680,54 @@ export const updateProductVariant = async (req, res) => {
   }
 };
 
+export const deleteProductVariant = async (req, res) => {
+  try {
+    const { productId, variantId } = req.params;
+    if (!mongoose.isValidObjectId(productId) || !mongoose.isValidObjectId(variantId)) {
+      return res.status(400).json({ success: false, message: 'Invalid product or variant ID' });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+
+    const variant = product.variants.id(variantId);
+    if (!variant) return res.status(404).json({ success: false, message: 'Variant not found for this product' });
+
+    const assets = [
+      variant.mainImage,
+      ...(variant.gallery || []),
+      variant.fileUpload?.fileUrl
+    ].filter(Boolean);
+    const retainedAssets = new Set([
+      product.mainImage,
+      ...(product.gallery || []),
+      product.fileUpload?.fileUrl,
+      ...product.variants
+        .filter(item => item._id.toString() !== variantId.toLowerCase())
+        .flatMap(item => [item.mainImage, ...(item.gallery || []), item.fileUpload?.fileUrl])
+    ].filter(Boolean));
+
+    const result = await Product.updateOne(
+      { _id: productId, 'variants._id': variantId },
+      { $pull: { variants: { _id: variantId } } }
+    );
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ success: false, message: 'Variant not found for this product' });
+    }
+
+    [...new Set(assets)]
+      .filter(asset => !retainedAssets.has(asset))
+      .forEach(deleteStoredUpload);
+    res.json({
+      success: true,
+      message: 'Product variant deleted successfully',
+      data: { productId, variantId }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const getProductByName = async (req, res) => {
   try{
     const { name } = req.params;
