@@ -527,6 +527,159 @@ export const getProductVariantBySlug = async (req, res) => {
   }
 };
 
+export const updateProductVariant = async (req, res) => {
+  try {
+    const { productId, variantId } = req.params;
+    if (!mongoose.isValidObjectId(productId) || !mongoose.isValidObjectId(variantId)) {
+      return res.status(400).json({ success: false, message: 'Invalid product or variant ID' });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+
+    const variant = product.variants.id(variantId);
+    if (!variant) return res.status(404).json({ success: false, message: 'Variant not found for this product' });
+
+    const previousGallery = [...(variant.gallery || [])];
+    const body = parseJSONFields({ ...req.body });
+    if (body.gallery !== undefined && typeof body.gallery === 'string') {
+      try {
+        body.gallery = JSON.parse(body.gallery);
+      } catch {
+        return res.status(400).json({ success: false, message: 'gallery must contain a valid JSON array' });
+      }
+    }
+    if (body.gallery !== undefined && !Array.isArray(body.gallery)) {
+      return res.status(400).json({ success: false, message: 'gallery must be an array' });
+    }
+
+    const fields = [
+      'name', 'shortDesc', 'fullDesc', 'specifications', 'features', 'applications',
+      'faqs', 'highlights', 'warranty', 'leadTime', 'inStock', 'price',
+      'discountedPrice', 'rating', 'reviews', 'certifications', 'isActive',
+      'isFeatured', 'metaTitle', 'metaDescription', 'metaKeywords'
+    ];
+    for (const field of fields) {
+      if (body[field] !== undefined) variant[field] = body[field];
+    }
+
+    if (body.brand !== undefined) {
+      if (!mongoose.isValidObjectId(body.brand)) {
+        return res.status(400).json({ success: false, message: 'Invalid variant brand ID' });
+      }
+      const brand = await Brand.findById(body.brand);
+      if (!brand) return res.status(400).json({ success: false, message: 'Variant brand not found' });
+      variant.brand = brand._id;
+      variant.brandName = brand.name;
+    }
+
+    if (body.category !== undefined) {
+      if (!mongoose.isValidObjectId(body.category)) {
+        return res.status(400).json({ success: false, message: 'Invalid variant category ID' });
+      }
+      const category = await Category.findById(body.category);
+      if (!category) return res.status(400).json({ success: false, message: 'Variant category not found' });
+      variant.category = category._id;
+      variant.categoryName = category.name;
+    }
+
+    const uploadedMainImage = req.files?.mainImage?.[0];
+    let replacedMainImage;
+    if (uploadedMainImage) {
+      const processedImage = await processMainImage(uploadedMainImage.path);
+      if (!processedImage) throw new Error('Could not process variant main image');
+      replacedMainImage = variant.mainImage;
+      variant.mainImage = processedImage;
+    } else if (body.mainImage !== undefined) {
+      replacedMainImage = variant.mainImage;
+      variant.mainImage = body.mainImage;
+    }
+
+    if (body.gallery !== undefined) {
+      variant.gallery = body.gallery;
+    }
+    if (req.files?.gallery?.length) {
+      const uploadedGallery = await Promise.all(
+        req.files.gallery.map(file => processGalleryImage(file.path))
+      );
+      if (uploadedGallery.some(image => !image)) throw new Error('Could not process variant gallery image');
+      variant.gallery = [...(variant.gallery || []), ...uploadedGallery];
+    }
+
+    const uploadedDocument = req.files?.fileUpload?.[0];
+    let replacedDocument;
+    if (uploadedDocument) {
+      replacedDocument = variant.fileUpload?.fileUrl;
+      variant.fileUpload = {
+        fileName: String(body.fileName || '').trim() || uploadedDocument.originalname,
+        fileUrl: `/uploads/products/files/${uploadedDocument.filename}`
+      };
+    } else if (body.fileUpload !== undefined) {
+      if (typeof body.fileUpload === 'string') {
+        try {
+          body.fileUpload = JSON.parse(body.fileUpload);
+        } catch {
+          return res.status(400).json({ success: false, message: 'fileUpload must contain valid JSON' });
+        }
+      }
+      replacedDocument = variant.fileUpload?.fileUrl;
+      variant.fileUpload = body.fileUpload;
+    } else if (body.fileName !== undefined && variant.fileUpload) {
+      variant.fileUpload.fileName = String(body.fileName).trim();
+    }
+
+    if (typeof variant.name !== 'string' || !variant.name.trim()) {
+      return res.status(400).json({ success: false, message: 'Variant name is required' });
+    }
+    variant.name = variant.name.trim();
+    variant.slug = generateSlug(variant.name);
+
+    const duplicate = product.variants.find(item =>
+      item._id.toString() !== variantId.toLowerCase()
+      && (
+        item.name.trim().toLowerCase() === variant.name.toLowerCase()
+        || item.slug === variant.slug
+      )
+    );
+    if (duplicate) {
+      return res.status(400).json({
+        success: false,
+        message: `Another variant already uses the name or slug "${variant.name}"`
+      });
+    }
+
+    await product.save();
+    await product.populate('brand category variants.brand variants.category');
+
+    if (replacedMainImage && replacedMainImage !== variant.mainImage) {
+      deleteStoredUpload(replacedMainImage);
+    }
+    if (replacedDocument && replacedDocument !== variant.fileUpload?.fileUrl) {
+      deleteStoredUpload(replacedDocument);
+    }
+    const retainedGallery = new Set(variant.gallery || []);
+    previousGallery
+      .filter(image => !retainedGallery.has(image))
+      .forEach(deleteStoredUpload);
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const productData = addFullUrls(product, baseUrl);
+    const updatedVariant = productData.variants.find(item => item._id.toString() === variantId.toLowerCase());
+    res.json({
+      success: true,
+      message: 'Product variant updated successfully',
+      data: updatedVariant
+    });
+  } catch (error) {
+    const isVariantValidationError = error.name === 'ValidationError'
+      && Object.keys(error.errors || {}).some(field => field.startsWith('variants.'));
+    res.status(error.statusCode || (isVariantValidationError ? 400 : 500)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 export const getProductByName = async (req, res) => {
   try{
     const { name } = req.params;
