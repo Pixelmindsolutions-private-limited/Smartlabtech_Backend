@@ -12,6 +12,114 @@ const faqSchema = new mongoose.Schema({
   a: { type: String, required: true }
 }, { _id: true });
 
+const productVariantSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Variant name is required'],
+    trim: true
+  },
+  slug: {
+    type: String,
+    lowercase: true,
+    trim: true
+  },
+  brand: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Brand',
+    required: [true, 'Brand is required']
+  },
+  brandName: {
+    type: String,
+    required: true
+  },
+  category: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    required: [true, 'Category is required']
+  },
+  categoryName: {
+    type: String,
+    required: true
+  },
+  shortDesc: {
+    type: String,
+    required: [true, 'Short description is required']
+  },
+  fullDesc: {
+    type: String,
+    required: [true, 'Full description is required']
+  },
+  mainImage: {
+    type: String,
+    required: [true, 'Main image is required']
+  },
+  gallery: [{ type: String }],
+  fileUpload: {
+    fileName: String,
+    fileUrl: String
+  },
+  specifications: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  features: [{ type: String }],
+  applications: [{ type: String }],
+  faqs: [faqSchema],
+  highlights: [highlightSchema],
+  warranty: {
+    type: String,
+    default: 'Standard warranty applies'
+  },
+  leadTime: {
+    type: String,
+    default: '2–3 weeks'
+  },
+  inStock: {
+    type: Boolean,
+    default: true
+  },
+  price: {
+    type: Number,
+    default: 0
+  },
+  discountedPrice: {
+    type: Number,
+    default: null
+  },
+  rating: {
+    type: Number,
+    min: 0,
+    max: 5,
+    default: 0
+  },
+  reviews: {
+    type: Number,
+    default: 0
+  },
+  certifications: [{ type: String }],
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  isFeatured: {
+    type: Boolean,
+    default: false
+  },
+  metaTitle: String,
+  metaDescription: String,
+  metaKeywords: [String]
+});
+
+productVariantSchema.pre('validate', function(next) {
+  if (this.name && !this.slug) {
+    this.slug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+  next();
+});
+
 const productSchema = new mongoose.Schema({
   // Basic Information
   name: {
@@ -140,6 +248,11 @@ const productSchema = new mongoose.Schema({
   isFeatured: {
     type: Boolean,
     default: false
+  },
+
+  variants: {
+    type: [productVariantSchema],
+    default: []
   },
   
   // Metadata

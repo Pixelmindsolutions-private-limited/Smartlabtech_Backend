@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import mongoose from 'mongoose';
 import Brand from '../models/Brand.js';
 import { Blog } from '../models/BlogsPage.js';
 import Category from '../models/Category.js';
@@ -11,6 +12,19 @@ import { processMainImage, processGalleryImage } from '../config/sharp.config.js
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const deleteStoredUpload = (fileUrl) => {
+  if (typeof fileUrl !== 'string' || /^https?:\/\//i.test(fileUrl)) return;
+
+  const uploadRoot = path.resolve(__dirname, '../uploads');
+  const relativePath = fileUrl.replace(/\\/g, '/').replace(/^\/+/, '').replace(/^uploads\//, '');
+  const filePath = path.resolve(uploadRoot, relativePath);
+  if (!filePath.startsWith(`${uploadRoot}${path.sep}`)) return;
+
+  if (fs.existsSync(filePath)) {
+    try { fs.unlinkSync(filePath); } catch (error) { console.warn('unlink failed:', filePath, error.message); }
+  }
+};
+
 // Helper: Delete product images + uploaded document from disk
 const deleteProductImages = async (product) => {
   const images = [product.mainImage, ...(product.gallery || [])];
@@ -21,19 +35,42 @@ const deleteProductImages = async (product) => {
     }
   });
 
-  // NEW: delete the uploaded document (fileUpload) from disk
   if (product.fileUpload?.fileUrl) {
-    // stored as "/uploads/products/files/xxx.pdf" — strip leading "/" to make it relative to CWD
     const filePath = product.fileUpload.fileUrl.replace(/^\/+/, '');
     if (fs.existsSync(filePath)) {
       try { fs.unlinkSync(filePath); } catch (e) { console.warn('unlink failed:', filePath, e.message); }
+    }
+  }
+
+  for (const variant of product.variants || []) {
+    deleteStoredUpload(variant.mainImage);
+    (variant.gallery || []).forEach(deleteStoredUpload);
+    deleteStoredUpload(variant.fileUpload?.fileUrl);
+  }
+};
+
+const deleteRemovedVariantAssets = (previousVariants, updatedProduct) => {
+  const currentAssets = new Set([
+    updatedProduct.mainImage,
+    ...(updatedProduct.gallery || []),
+    updatedProduct.fileUpload?.fileUrl,
+    ...(updatedProduct.variants || []).flatMap(variant => [
+      variant.mainImage,
+      ...(variant.gallery || []),
+      variant.fileUpload?.fileUrl
+    ])
+  ].filter(Boolean));
+
+  for (const variant of previousVariants || []) {
+    for (const asset of [variant.mainImage, ...(variant.gallery || []), variant.fileUpload?.fileUrl]) {
+      if (asset && !currentAssets.has(asset)) deleteStoredUpload(asset);
     }
   }
 };
 
 // Helper: Parse JSON fields
 const parseJSONFields = (body) => {
-  ['specifications', 'features', 'applications', 'faqs', 'highlights', 'certifications'].forEach(field => {
+  ['specifications', 'features', 'applications', 'faqs', 'highlights', 'certifications', 'metaKeywords'].forEach(field => {
     if (body[field]) try { body[field] = JSON.parse(body[field]); } catch(e) {}
   });
   return body;
@@ -41,6 +78,146 @@ const parseJSONFields = (body) => {
 
 // Helper: Generate slug
 const generateSlug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+const parseVariantsField = (value) => {
+  let variants = value;
+  if (typeof variants === 'string') {
+    try {
+      variants = JSON.parse(variants);
+    } catch {
+      const error = new Error('variants must contain valid JSON');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (!Array.isArray(variants)) {
+    const error = new Error('variants must be an array');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (variants.some(variant => !variant || typeof variant !== 'object' || Array.isArray(variant))) {
+    const error = new Error('Each variant must be an object');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return variants;
+};
+
+const prepareProductVariants = async (variants, uploadedFiles, defaults, existingVariants = []) => {
+  const uploadedIndexes = Object.keys(uploadedFiles || {});
+  if (uploadedIndexes.some(index => Number(index) >= variants.length)) {
+    const error = new Error('Variant image field index does not match the variants array');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const preparedVariants = await Promise.all(variants.map(async (input, index) => {
+    const existing = input._id
+      ? existingVariants.find(variant => variant._id.toString() === input._id.toString())
+      : null;
+
+    if (input._id && !existing) {
+      const error = new Error(`Variant ${input._id} was not found on this product`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const variant = { ...(existing?.toObject() || {}), ...input };
+    if (typeof variant.name !== 'string' || !variant.name.trim()) {
+      const error = new Error(`Variant ${index + 1} name is required`);
+      error.statusCode = 400;
+      throw error;
+    }
+    variant.name = variant.name.trim();
+
+    const files = uploadedFiles?.[index] || {};
+
+    if (files.mainImage?.[0]) {
+      variant.mainImage = await processMainImage(files.mainImage[0].path);
+      if (!variant.mainImage) throw new Error(`Could not process image for variant ${index + 1}`);
+    }
+
+    if (files.gallery?.length) {
+      const gallery = await Promise.all(files.gallery.map(file => processGalleryImage(file.path)));
+      if (gallery.some(image => !image)) throw new Error(`Could not process gallery image for variant ${index + 1}`);
+      variant.gallery = [...(variant.gallery || []), ...gallery];
+    }
+
+    const uploadedFile = files.fileUpload?.[0];
+    if (uploadedFile) {
+      variant.fileUpload = {
+        fileName: String(variant.fileName || '').trim() || uploadedFile.originalname,
+        fileUrl: `/uploads/products/files/${uploadedFile.filename}`
+      };
+    } else if (variant.fileName !== undefined && variant.fileUpload?.fileUrl) {
+      variant.fileUpload = {
+        ...variant.fileUpload,
+        fileName: String(variant.fileName).trim()
+      };
+    }
+    delete variant.fileName;
+
+    const brandId = variant.brand?._id || variant.brand || defaults.brand;
+    const categoryId = variant.category?._id || variant.category || defaults.category;
+    if (!mongoose.isValidObjectId(brandId)) {
+      const error = new Error(`Variant ${index + 1} has an invalid brand`);
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!mongoose.isValidObjectId(categoryId)) {
+      const error = new Error(`Variant ${index + 1} has an invalid category`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const [brand, category] = await Promise.all([
+      Brand.findById(brandId),
+      Category.findById(categoryId)
+    ]);
+    if (!brand) {
+      const error = new Error(`Brand not found for variant ${index + 1}`);
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!category) {
+      const error = new Error(`Category not found for variant ${index + 1}`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    variant.brand = brand._id;
+    variant.brandName = brand.name;
+    variant.category = category._id;
+    variant.categoryName = category.name;
+
+    return variant;
+  }));
+
+  const usedNames = new Set();
+  const usedSlugs = new Set();
+  for (const variant of preparedVariants) {
+    const normalizedName = variant.name.toLowerCase();
+    if (usedNames.has(normalizedName)) {
+      const error = new Error(`Variant with this name already exists: "${variant.name}"`);
+      error.statusCode = 400;
+      throw error;
+    }
+    usedNames.add(normalizedName);
+
+    variant.slug = generateSlug(variant.name);
+    if (usedSlugs.has(variant.slug)) {
+      const error = new Error(`Variant slug already exists for this product: "${variant.slug}"`);
+      error.statusCode = 400;
+      throw error;
+    }
+    usedSlugs.add(variant.slug);
+  }
+
+  return preparedVariants;
+};
 
 const addFullUrls = (product, baseUrl) => {
   const productObj = product.toObject();
@@ -62,12 +239,35 @@ const addFullUrls = (product, baseUrl) => {
     productObj.fileUpload.fileUrl = `${baseUrl}${productObj.fileUpload.fileUrl}`;
   }
 
+  productObj.variants = (productObj.variants || []).map(variant => {
+    if (variant.mainImage && !variant.mainImage.startsWith('http')) {
+      variant.mainImage = `${baseUrl}${variant.mainImage}`;
+    }
+    if (variant.gallery?.length) {
+      variant.gallery = variant.gallery.map(image =>
+        image && !image.startsWith('http') ? `${baseUrl}${image}` : image
+      );
+    }
+    if (variant.fileUpload?.fileUrl && !variant.fileUpload.fileUrl.startsWith('http')) {
+      variant.fileUpload.fileUrl = `${baseUrl}${variant.fileUpload.fileUrl}`;
+    }
+    if (variant.brand?.logo && !variant.brand.logo.startsWith('http')) {
+      variant.brand.logo = `${baseUrl}${variant.brand.logo}`;
+    }
+    return variant;
+  });
+
   if (!productObj.slug && productObj.name) productObj.slug = generateSlug(productObj.name);
   delete productObj.mainImageUrl;
   delete productObj.galleryUrls;
 
   return productObj;
 };
+
+const populateProduct = (query) => query
+  .populate('brand category')
+  .populate('variants.brand')
+  .populate('variants.category');
 
 // Helper: Process images from request
 const processProductImages = async (files) => {
@@ -113,6 +313,7 @@ const buildProductQuery = (req) => {
 export const createProduct = async (req, res) => {
   try {
     req.body = parseJSONFields(req.body);
+    const variantsInput = parseVariantsField(req.body.variants === undefined ? [] : req.body.variants);
     const { name, brand, category } = req.body;
 
     if (!name || !brand || !category) {
@@ -149,17 +350,22 @@ export const createProduct = async (req, res) => {
 
 
     const images = await processProductImages(req.files);
+    const variants = await prepareProductVariants(variantsInput, req.variantFiles, {
+      brand: brandExists._id,
+      category: categoryExists._id
+    });
 
     const product = await Product.create({
       ...req.body,
       slug,
+      variants,
       ...images,
       ...(fileUpload && { fileUpload }),
       brandName: brandExists.name,
       categoryName: categoryExists.name,
     });
 
-    await product.populate('brand category');
+    await product.populate('brand category variants.brand variants.category');
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.status(201).json({
       success: true,
@@ -167,7 +373,9 @@ export const createProduct = async (req, res) => {
       data: addFullUrls(product, baseUrl),
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    const isVariantValidationError = error.name === 'ValidationError'
+      && Object.keys(error.errors || {}).some(field => field.startsWith('variants.'));
+    res.status(error.statusCode || (isVariantValidationError ? 400 : 500)).json({ success: false, message: error.message });
   }
 };
 
@@ -179,7 +387,7 @@ export const getAllProducts = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
     const [products, total] = await Promise.all([
-      Product.find(query).populate('brand category').sort(sort).limit(parseInt(limit)).skip(skip),
+      populateProduct(Product.find(query)).sort(sort).limit(parseInt(limit)).skip(skip),
       Product.countDocuments(query)
     ]);
     
@@ -234,7 +442,7 @@ export const getAllProductsAdmin = async (req, res) => {
     
     const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
 
-    let productsQuery = Product.find(query).populate('brand category').sort(sort);
+    let productsQuery = populateProduct(Product.find(query)).sort(sort);
     if (shouldPaginate) {
       const skip = (pageNum - 1) * limitNum;
       productsQuery = productsQuery.skip(skip).limit(limitNum);
@@ -267,7 +475,7 @@ export const getAllProductsAdmin = async (req, res) => {
 
 export const getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate('brand category');
+    const product = await populateProduct(Product.findById(req.params.id));
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.json({ success: true, data: addFullUrls(product, baseUrl) });
@@ -279,10 +487,41 @@ export const getProductById = async (req, res) => {
 export const getProductBySlug = async (req, res) => {
   try {
     const slug = req.params.slug || req.params.id;
-    const product = await Product.findOne({ slug: { $regex: new RegExp(`^${slug}$`, 'i') } }).populate('brand category');
+    const product = await populateProduct(Product.findOne({ slug: { $regex: new RegExp(`^${slug}$`, 'i') } }));
     if (!product) return res.status(404).json({ success: false, message: `Product not found with slug: "${slug}"` });
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.json({ success: true, data: addFullUrls(product, baseUrl) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getProductVariantBySlug = async (req, res) => {
+  try {
+    const { slug, variantSlug } = req.params;
+    const product = await populateProduct(Product.findOne({
+      slug: { $regex: new RegExp(`^${slug}$`, 'i') }
+    }));
+    if (!product) {
+      return res.status(404).json({ success: false, message: `Product not found with slug: "${slug}"` });
+    }
+
+    const variant = product.variants.find(item => item.slug?.toLowerCase() === variantSlug.toLowerCase());
+    if (!variant) {
+      return res.status(404).json({ success: false, message: `Variant not found with slug: "${variantSlug}"` });
+    }
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const productData = addFullUrls(product, baseUrl);
+    const variantData = productData.variants.find(item => item._id.toString() === variant._id.toString());
+    productData.variants = [variantData];
+
+    res.json({
+      success: true,
+      data: {
+        product: productData,
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -293,7 +532,7 @@ export const getProductByName = async (req, res) => {
     const { name } = req.params;
     const { exact = 'false' } = req.query;
     const query = exact === 'true' ? { name } : { name: { $regex: name, $options: 'i' } };
-    const products = await Product.find(query).populate('brand category').sort({ name: 1 });
+    const products = await populateProduct(Product.find(query)).sort({ name: 1 });
     if (!products.length) return res.status(404).json({ success: false, message: `No products found with name containing "${name}"` });
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.json({ success: true, count: products.length, data: products.map(p => addFullUrls(p, baseUrl)) });
@@ -304,7 +543,10 @@ export const getProductByName = async (req, res) => {
 
 export const getFeaturedProducts = async (req, res) => {
   try {
-    const products = await Product.find({ isFeatured: true, isActive: true }).populate('brand', 'name logo').limit(parseInt(req.query.limit || 8)).sort({ rating: -1 });
+    const products = await populateProduct(Product.find({ isFeatured: true, isActive: true }))
+      .populate('brand', 'name logo')
+      .limit(parseInt(req.query.limit || 8))
+      .sort({ rating: -1 });
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.json({ success: true, data: products.map(p => addFullUrls(p, baseUrl)) });
   } catch (error) {
@@ -316,7 +558,10 @@ export const getProductsByBrand = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const [products, total] = await Promise.all([
-      Product.find({ brand: req.params.brandId, isActive: true }).populate('brand', 'name logo').limit(parseInt(limit)).skip((parseInt(page) - 1) * parseInt(limit)),
+      populateProduct(Product.find({ brand: req.params.brandId, isActive: true }))
+        .populate('brand', 'name logo')
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit)),
       Product.countDocuments({ brand: req.params.brandId, isActive: true })
     ]);
     const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -330,7 +575,10 @@ export const getProductsByCategory = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const [products, total] = await Promise.all([
-      Product.find({ category: req.params.categoryId, isActive: true }).populate('category', 'name').limit(parseInt(limit)).skip((parseInt(page) - 1) * parseInt(limit)),
+      populateProduct(Product.find({ category: req.params.categoryId, isActive: true }))
+        .populate('category', 'name')
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit)),
       Product.countDocuments({ category: req.params.categoryId, isActive: true })
     ]);
     const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -456,7 +704,7 @@ export const getProductsByCategory = async (req, res) => {
 //       }
       
 //       // Delete the helper field so it doesn't get saved to MongoDB
-//       delete req.body.removedGallery; 
+//       delete req.body.removedGallery;
 //     }
 
 //     // 4. Apply the final updated gallery array to the request body
@@ -530,6 +778,12 @@ export const updateProduct = async (req, res) => {
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
     req.body = parseJSONFields(req.body);
+    const hasVariants = req.body.variants !== undefined;
+    const variantsInput = hasVariants ? parseVariantsField(req.body.variants) : undefined;
+    delete req.body.variants;
+    if (!hasVariants && Object.keys(req.variantFiles || {}).length) {
+      return res.status(400).json({ success: false, message: 'Include the variants array when uploading variant files' });
+    }
 
     // 1. Slug regeneration on name change
     if (req.body.name && req.body.name !== product.name) {
@@ -660,12 +914,24 @@ export const updateProduct = async (req, res) => {
       if (category) req.body.categoryName = category.name;
     }
 
+    if (hasVariants) {
+      req.body.variants = await prepareProductVariants(variantsInput, req.variantFiles, {
+        brand: req.body.brand || product.brand,
+        brandName: req.body.brandName || product.brandName,
+        category: req.body.category || product.category,
+        categoryName: req.body.categoryName || product.categoryName
+      }, product.variants);
+    }
+
     // 7. Save to Database
-    const updatedProduct = await Product.findByIdAndUpdate(
+    const updatedProduct = await populateProduct(Product.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
-    ).populate('brand category');
+    ));
+    if (hasVariants && updatedProduct) {
+      deleteRemovedVariantAssets(product.variants, updatedProduct);
+    }
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
@@ -677,7 +943,9 @@ export const updateProduct = async (req, res) => {
 
   } catch (error) {
     console.error("Update Product Error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    const isVariantValidationError = error.name === 'ValidationError'
+      && Object.keys(error.errors || {}).some(field => field.startsWith('variants.'));
+    res.status(error.statusCode || (isVariantValidationError ? 400 : 500)).json({ success: false, message: error.message });
   }
 };
 
@@ -699,7 +967,7 @@ export const toggleProductStatus = async (req, res) => {
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
     product.isActive = !product.isActive;
     await product.save();
-    await product.populate('brand category');
+    await product.populate('brand category variants.brand variants.category');
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     res.json({ success: true, message: `Product ${product.isActive ? 'activated' : 'deactivated'} successfully`, data: addFullUrls(product, baseUrl) });
   } catch (error) {
@@ -715,7 +983,7 @@ export const searchProducts = async (req, res) => {
     const sort = sortBy === 'price' ? { discountedPrice: sortOrder === 'desc' ? -1 : 1 } : { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
     
     const [products, total] = await Promise.all([
-      Product.find(query).populate('brand category').sort(sort).limit(parseInt(limit)).skip((parseInt(page) - 1) * parseInt(limit)),
+      populateProduct(Product.find(query)).sort(sort).limit(parseInt(limit)).skip((parseInt(page) - 1) * parseInt(limit)),
       Product.countDocuments(query)
     ]);
     

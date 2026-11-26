@@ -20,6 +20,7 @@ const ensureDir = (dir) => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let uploadPath;
+    const variantMatch = file.fieldname.match(/^variants\[\d+\]\.(mainImage|gallery|fileUpload)$/);
 
     switch (file.fieldname) {
       case 'logo':
@@ -63,7 +64,16 @@ const storage = multer.diskStorage({
       break;
     }
       default:
-        uploadPath = path.join(UPLOAD_ROOT, 'temp');
+        if (variantMatch) {
+          const folder = variantMatch[1] === 'fileUpload'
+            ? 'files'
+            : variantMatch[1] === 'gallery'
+              ? 'gallery'
+              : 'main';
+          uploadPath = path.join(UPLOAD_ROOT, 'products', folder);
+        } else {
+          uploadPath = path.join(UPLOAD_ROOT, 'temp');
+        }
     }
 
     ensureDir(uploadPath);
@@ -85,8 +95,11 @@ const docMimes   = /pdf|msword|officedocument|excel|powerpoint|zip|rar|text|csv/
 const fileFilter = (req, file, cb) => {
   const ext  = path.extname(file.originalname).toLowerCase().replace('.', '');
   const mime = file.mimetype || '';
+  const isDocumentField = file.fieldname === 'fileUpload'
+    || file.fieldname === 'resume'
+    || /^variants\[\d+\]\.fileUpload$/.test(file.fieldname);
 
-  if (file.fieldname === 'fileUpload' || file.fieldname === 'resume') {
+  if (isDocumentField) {
     if (docExts.test(ext) && docMimes.test(mime)) return cb(null, true);
     return cb(new Error('File must be a document (pdf, doc, docx, xls, xlsx, ppt, pptx, zip, rar, txt, csv)'));
   }
@@ -107,11 +120,7 @@ const upload = multer({
 const uploadBrandLogo = upload.single('logo');
 
 
-const uploadProductImagesBase = upload.fields([
-  { name: 'mainImage',  maxCount: 1  },
-  { name: 'gallery',    maxCount: 10 },
-  { name: 'fileUpload', maxCount: 1  },
-]);
+const uploadProductImagesBase = upload.any();
 
 // ---------- Safe wrapper: cleanup partial files on error ----------
 const cleanupOnError = (err, req) => {
@@ -135,6 +144,40 @@ const uploadProductImages = (req, res, next) => {
       cleanupOnError(err, req);
       return next(err);
     }
+
+    const rootFiles = {};
+    const variantFiles = {};
+    const counts = {};
+
+    for (const file of req.files || []) {
+      const variantMatch = file.fieldname.match(/^variants\[(\d+)\]\.(mainImage|gallery|fileUpload)$/);
+      const isRootField = ['mainImage', 'gallery', 'fileUpload'].includes(file.fieldname);
+
+      if (!variantMatch && !isRootField) {
+        cleanupOnError(null, req);
+        return next(new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname));
+      }
+
+      counts[file.fieldname] = (counts[file.fieldname] || 0) + 1;
+      const limit = file.fieldname === 'gallery' || variantMatch?.[2] === 'gallery' ? 10 : 1;
+      if (counts[file.fieldname] > limit) {
+        cleanupOnError(null, req);
+        return next(new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname));
+      }
+
+      if (variantMatch) {
+        const [, index, field] = variantMatch;
+        if (!variantFiles[index]) variantFiles[index] = {};
+        if (!variantFiles[index][field]) variantFiles[index][field] = [];
+        variantFiles[index][field].push(file);
+      } else {
+        if (!rootFiles[file.fieldname]) rootFiles[file.fieldname] = [];
+        rootFiles[file.fieldname].push(file);
+      }
+    }
+
+    req.files = rootFiles;
+    req.variantFiles = variantFiles;
     next();
   });
 };

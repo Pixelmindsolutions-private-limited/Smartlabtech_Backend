@@ -1,6 +1,6 @@
 import express from 'express';
 import {
-  createProduct, getAllProducts, getProductById, getProductBySlug, getProductByName,
+  createProduct, getAllProducts, getProductById, getProductBySlug, getProductVariantBySlug, getProductByName,
   getFeaturedProducts, getProductsByBrand, getProductsByCategory, updateProduct, deleteProduct,
   toggleProductStatus, searchProducts, getSearchFilters, searchAllContent,
   getProductSuggestions, addProductSuggestion, removeProductSuggestion, toggleSuggestionStatus,getAllProductsAdmin, bulkAddProductSuggestions
@@ -18,6 +18,7 @@ router.get('/search/filters', getSearchFilters);
 router.get('/search/all', searchAllContent);
 router.get('/featured', getFeaturedProducts);
 router.get('/suggestions', getProductSuggestions);
+router.get('/slug/:slug/variantslug/:variantSlug', getProductVariantBySlug);
 router.get('/slug/:slug', getProductBySlug);
 router.get('/name/:name', getProductByName);
 router.get('/brand/:brandId', getProductsByBrand);
