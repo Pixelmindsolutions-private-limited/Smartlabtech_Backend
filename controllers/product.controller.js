@@ -542,6 +542,11 @@ export const updateProductVariant = async (req, res) => {
 
     const previousGallery = [...(variant.gallery || [])];
     const body = parseJSONFields({ ...req.body });
+    const removedGalleryKeys = new Set(
+      parseList(body.removedGallery).map(galleryKey)
+    );
+    delete body.removedGallery;
+
     if (body.gallery !== undefined && typeof body.gallery === 'string') {
       try {
         body.gallery = JSON.parse(body.gallery);
@@ -604,6 +609,11 @@ export const updateProductVariant = async (req, res) => {
       );
       if (uploadedGallery.some(image => !image)) throw new Error('Could not process variant gallery image');
       variant.gallery = [...(variant.gallery || []), ...uploadedGallery];
+    }
+    if (removedGalleryKeys.size) {
+      variant.gallery = (variant.gallery || []).filter(
+        image => !removedGalleryKeys.has(galleryKey(image))
+      );
     }
 
     const uploadedDocument = req.files?.fileUpload?.[0];
